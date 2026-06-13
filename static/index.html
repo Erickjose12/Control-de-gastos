@@ -7,17 +7,32 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <main class="app">
-      <header class="topbar">
-        <div>
-          <h1>Finanzas Local</h1>
-          <p>Control privado de ingresos, gastos e importaciones bancarias.</p>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <strong>Finanzas Local</strong>
+          <span>Control personal</span>
         </div>
-        <label class="month-picker">
-          <span>Mes</span>
-          <input id="monthInput" type="month" value="2026-06" />
-        </label>
-      </header>
+        <nav class="nav-menu" aria-label="Menu principal">
+          <button class="nav-item active" type="button">Dashboard</button>
+        </nav>
+        <div class="sidebar-note">
+          <span>Proximamente</span>
+          <p>Importaciones, cuentas y reportes.</p>
+        </div>
+      </aside>
+
+      <main class="app">
+        <header class="topbar">
+          <div>
+            <h1>Dashboard</h1>
+            <p>Resumen mensual de ingresos, gastos, ahorro y movimientos.</p>
+          </div>
+          <label class="month-picker">
+            <span>Mes</span>
+            <input id="monthInput" type="month" value="2026-06" />
+          </label>
+        </header>
 
       <section class="kpis" aria-label="Resumen mensual">
         <article class="kpi income">
@@ -160,7 +175,8 @@
           </table>
         </div>
       </section>
-    </main>
+      </main>
+    </div>
     <script src="/app.js"></script>
   </body>
 </html>

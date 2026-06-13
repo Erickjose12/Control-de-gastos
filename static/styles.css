@@ -29,10 +29,77 @@ select {
   font: inherit;
 }
 
+.shell {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: #0f243b;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px 16px;
+}
+
+.brand {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  display: grid;
+  gap: 4px;
+  padding-bottom: 18px;
+}
+
+.brand strong {
+  font-size: 20px;
+}
+
+.brand span,
+.sidebar-note {
+  color: #cbd5e1;
+  font-size: 13px;
+}
+
+.nav-menu {
+  display: grid;
+  gap: 8px;
+}
+
+.nav-item {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #dbeafe;
+  cursor: pointer;
+  font-weight: 700;
+  min-height: 42px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.nav-item.active {
+  background: #15395d;
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.sidebar-note {
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  margin-top: auto;
+  padding-top: 16px;
+}
+
+.sidebar-note span {
+  color: #fff;
+  display: block;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
 .app {
-  width: min(1440px, calc(100% - 32px));
-  margin: 0 auto;
-  padding: 20px 0 32px;
+  min-width: 0;
+  padding: 20px 24px 32px;
 }
 
 .topbar {
@@ -311,6 +378,38 @@ td select {
 }
 
 @media (max-width: 980px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    display: block;
+    padding: 14px 16px;
+  }
+
+  .brand {
+    border-bottom: 0;
+    padding-bottom: 10px;
+  }
+
+  .nav-menu {
+    display: flex;
+    overflow-x: auto;
+  }
+
+  .nav-item {
+    min-width: 130px;
+    text-align: center;
+  }
+
+  .sidebar-note {
+    display: none;
+  }
+
+  .app {
+    padding: 16px;
+  }
+
   .topbar,
   .layout {
     grid-template-columns: 1fr;
