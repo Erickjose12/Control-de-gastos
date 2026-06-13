@@ -10,6 +10,7 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+from urllib.request import urlopen
 from contextlib import contextmanager
 
 try:
@@ -22,6 +23,7 @@ ROOT = Path(__file__).parent
 STATIC = ROOT / "static"
 DATA = ROOT / "data"
 DB = DATA / "finanzas.db"
+EXCHANGE_RATE_URL = "https://open.er-api.com/v6/latest/USD"
 
 ACCOUNTS = [
     "GYT - Cuenta ahorro sueldo",
@@ -387,6 +389,29 @@ def rowdict(row: sqlite3.Row) -> dict:
     return dict(row)
 
 
+def fetch_usd_gtq_rate() -> dict:
+    try:
+        with urlopen(EXCHANGE_RATE_URL, timeout=8) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        rate = float(payload["rates"]["GTQ"])
+        return {
+            "ok": True,
+            "base": "USD",
+            "target": "GTQ",
+            "rate": rate,
+            "updatedAt": payload.get("time_last_update_utc"),
+            "provider": payload.get("provider"),
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "base": "USD",
+            "target": "GTQ",
+            "rate": None,
+            "message": f"No se pudo obtener el tipo de cambio: {exc}",
+        }
+
+
 class App(BaseHTTPRequestHandler):
     server_version = "FinanzasLocal/0.1"
 
@@ -445,6 +470,8 @@ class App(BaseHTTPRequestHandler):
         elif path == "/api/dashboard":
             month = query.get("month", [datetime.now().strftime("%Y-%m")])[0]
             self.send_json(build_dashboard(month))
+        elif path == "/api/exchange-rate":
+            self.send_json(fetch_usd_gtq_rate())
         else:
             self.send_error(404)
 

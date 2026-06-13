@@ -10,6 +10,7 @@ const state = {
   },
   imports: [],
   dashboard: null,
+  exchangeRate: null,
 };
 
 const fmtMoney = new Intl.NumberFormat("es-GT", {
@@ -161,6 +162,36 @@ function renderManualCategories() {
   const categories = categoriesForType(type);
   $("manualCategory").innerHTML = optionList(categories, categories[0]);
   $("manualAccount").innerHTML = optionList(state.meta.accounts, defaultAccountForType(type));
+  if (type === "Venta USD") {
+    loadExchangeRate();
+  }
+}
+
+async function loadExchangeRate() {
+  try {
+    const data = await api("/api/exchange-rate");
+    if (!data.ok || !data.rate) throw new Error(data.message || "Sin tasa");
+    state.exchangeRate = data.rate;
+    const input = $("exchangeRateInput");
+    if (!input.value || Number(input.value) <= 0.0001) {
+      input.value = data.rate.toFixed(4);
+    }
+    $("importStatus").textContent = `Tipo de cambio USD-GTQ actualizado: ${data.rate.toFixed(4)}`;
+    calculateGtqFromUsd();
+  } catch (error) {
+    $("importStatus").textContent = "No pude obtener el tipo de cambio. Podés ingresarlo manualmente.";
+    console.error(error);
+  }
+}
+
+function calculateGtqFromUsd() {
+  if ($("manualType").value !== "Venta USD") return;
+  const form = $("manualForm");
+  const usd = Number(form.elements.usdAmount.value || 0);
+  const rate = Number(form.elements.exchangeRate.value || 0);
+  if (usd > 0 && rate > 0) {
+    form.elements.amount.value = (usd * rate).toFixed(2);
+  }
 }
 
 async function updateImport(id, field, value) {
@@ -204,6 +235,8 @@ $("commitBtn").addEventListener("click", async () => {
 });
 
 $("manualType").addEventListener("change", renderManualCategories);
+$("manualForm").elements.usdAmount.addEventListener("input", calculateGtqFromUsd);
+$("exchangeRateInput").addEventListener("input", calculateGtqFromUsd);
 
 $("manualForm").addEventListener("submit", async (event) => {
   event.preventDefault();
