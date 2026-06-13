@@ -155,12 +155,24 @@ input[type="file"] {
   padding: 14px;
 }
 
-.import-form label {
+.import-form label,
+.manual-form label {
   color: var(--muted);
   display: grid;
   font-size: 12px;
   font-weight: 700;
   gap: 5px;
+}
+
+.manual-form {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(7, minmax(110px, 1fr)) auto;
+  padding: 14px;
+}
+
+.wide-field {
+  grid-column: span 2;
 }
 
 .primary,
@@ -296,5 +308,13 @@ td select {
 
   .import-form {
     grid-template-columns: 1fr;
+  }
+
+  .manual-form {
+    grid-template-columns: 1fr;
+  }
+
+  .wide-field {
+    grid-column: auto;
   }
 }

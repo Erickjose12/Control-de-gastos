@@ -1,5 +1,13 @@
 const state = {
-  meta: { accounts: [], incomeCategories: [], expenseCategories: [] },
+  meta: {
+    accounts: [],
+    incomeCategories: [],
+    expenseCategories: [],
+    savingsCategories: [],
+    transferCategories: [],
+    categories: [],
+    transactionTypes: [],
+  },
   imports: [],
   dashboard: null,
 };
@@ -34,7 +42,10 @@ function escapeHtml(value) {
 
 async function load() {
   state.meta = await api("/api/meta");
-  $("accountSelect").innerHTML = optionList(state.meta.accounts, "GYT - Cuenta sueldo");
+  $("accountSelect").innerHTML = optionList(state.meta.accounts, "GYT - Cuenta ahorro sueldo");
+  $("manualAccount").innerHTML = optionList(state.meta.accounts, "Banrural - Cuenta ahorro");
+  $("manualForm").elements.date.value = new Date().toISOString().slice(0, 10);
+  renderManualCategories();
   await refreshAll();
 }
 
@@ -58,7 +69,7 @@ function renderDashboard() {
   $("incomeKpi").textContent = fmtMoney.format(data.income);
   $("expenseKpi").textContent = fmtMoney.format(data.expenses);
   $("balanceKpi").textContent = fmtMoney.format(data.balance);
-  $("rateKpi").textContent = `${Math.round(data.savingsRate * 100)}%`;
+  $("rateKpi").textContent = `${fmtMoney.format(data.savings)} · ${Math.round(data.savingsRate * 100)}%`;
 
   const max = Math.max(...data.byCategory.map(([, amount]) => amount), 0);
   $("categoryBars").innerHTML =
@@ -97,7 +108,7 @@ function renderDashboard() {
 }
 
 function renderImports() {
-  const categories = [...state.meta.incomeCategories, ...state.meta.expenseCategories];
+  const categories = state.meta.categories;
   $("importsBody").innerHTML =
     state.imports.length === 0
       ? `<tr><td class="empty" colspan="7">No hay movimientos importados pendientes.</td></tr>`
@@ -112,7 +123,7 @@ function renderImports() {
               <td class="description">${escapeHtml(row.description)}</td>
               <td>
                 <select data-field="suggested_type">
-                  ${optionList(["Ingreso", "Gasto"], row.suggested_type)}
+                  ${optionList(state.meta.transactionTypes, row.suggested_type)}
                 </select>
               </td>
               <td>
@@ -123,12 +134,33 @@ function renderImports() {
               <td class="money">${fmtMoney.format(row.amount)}</td>
               <td>
                 <select data-field="action">
-                  ${optionList(["Pendiente", "Pasar a Ingresos", "Pasar a Gastos", "Ignorar / transferencia", "Registrado"], row.action)}
+                  ${optionList(["Pendiente", "Pasar a Ingresos", "Pasar a Gastos", "Registrar como Ahorro", "Registrar venta USD", "Registrar transferencia", "Ignorar / transferencia", "Registrado"], row.action)}
                 </select>
               </td>
             </tr>`,
           )
           .join("");
+}
+
+function categoriesForType(type) {
+  if (type === "Ingreso" || type === "Venta USD") return state.meta.incomeCategories;
+  if (type === "Ahorro") return state.meta.savingsCategories;
+  if (type === "Transferencia") return state.meta.transferCategories;
+  return state.meta.expenseCategories;
+}
+
+function defaultAccountForType(type) {
+  if (type === "Ahorro" || type === "Venta USD") return "Banrural - Cuenta ahorro";
+  if (type === "Ingreso") return "GYT - Cuenta ahorro sueldo";
+  if (type === "Gasto") return "GYT - Tarjeta credito";
+  return "GYT - Cuenta ahorro sueldo";
+}
+
+function renderManualCategories() {
+  const type = $("manualType").value;
+  const categories = categoriesForType(type);
+  $("manualCategory").innerHTML = optionList(categories, categories[0]);
+  $("manualAccount").innerHTML = optionList(state.meta.accounts, defaultAccountForType(type));
 }
 
 async function updateImport(id, field, value) {
@@ -150,7 +182,7 @@ $("importForm").addEventListener("submit", async (event) => {
     const result = await api("/api/import", { method: "POST", body: data });
     $("importStatus").textContent = `Listo: ${result.count} movimientos cargados a revision.`;
     form.reset();
-    $("accountSelect").innerHTML = optionList(state.meta.accounts, "GYT - Cuenta sueldo");
+    $("accountSelect").innerHTML = optionList(state.meta.accounts, "GYT - Cuenta ahorro sueldo");
     await loadImports();
   } catch (error) {
     $("importStatus").textContent = "No se pudo importar el archivo.";
@@ -169,6 +201,26 @@ $("commitBtn").addEventListener("click", async () => {
   const result = await api("/api/imports/commit", { method: "POST" });
   $("importStatus").textContent = `Registrados ${result.count} movimientos.`;
   await refreshAll();
+});
+
+$("manualType").addEventListener("change", renderManualCategories);
+
+$("manualForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = Object.fromEntries(new FormData(form).entries());
+  await api("/api/transactions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  $("importStatus").textContent = "Movimiento manual guardado.";
+  const currentType = $("manualType").value;
+  form.reset();
+  $("manualForm").elements.date.value = new Date().toISOString().slice(0, 10);
+  $("manualType").value = currentType;
+  renderManualCategories();
+  await loadDashboard();
 });
 
 $("clearImportsBtn").addEventListener("click", async () => {

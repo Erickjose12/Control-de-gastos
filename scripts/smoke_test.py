@@ -13,9 +13,10 @@ def main() -> None:
         server.DB = server.DATA / "finanzas.db"
         server.init_db()
         dashboard = server.build_dashboard("2026-06")
-        assert dashboard["income"] == 7000.0
+        assert dashboard["income"] == 8500.0
         assert dashboard["expenses"] == 2100.0
-        assert dashboard["balance"] == 4900.0
+        assert dashboard["savings"] == 1000.0
+        assert dashboard["balance"] == 5400.0
         print(json.dumps({"ok": True, "dashboard": dashboard["month"]}))
 
 

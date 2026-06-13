@@ -24,17 +24,17 @@ DATA = ROOT / "data"
 DB = DATA / "finanzas.db"
 
 ACCOUNTS = [
-    "GYT - Cuenta sueldo",
+    "GYT - Cuenta ahorro sueldo",
     "GYT - Tarjeta debito",
     "GYT - Tarjeta credito",
-    "BAM - Cuenta sueldo",
+    "BAC - Cuenta ahorro USD",
+    "Banrural - Cuenta ahorro",
     "Efectivo",
-    "Ahorro",
     "Otro banco",
     "Otro",
 ]
 
-INCOME_CATEGORIES = ["Salario", "Trabajo extra", "Ventas", "Regalo / apoyo", "Otros ingresos"]
+INCOME_CATEGORIES = ["Sueldo GYT", "Sueldo BAC USD", "Venta USD", "Trabajo extra", "Otros ingresos"]
 EXPENSE_CATEGORIES = [
     "Alquiler / vivienda",
     "Servicios",
@@ -50,6 +50,10 @@ EXPENSE_CATEGORIES = [
     "Emergencias",
     "Otros gastos",
 ]
+SAVINGS_CATEGORIES = ["Ahorro Banrural", "Ahorro extra"]
+TRANSFER_CATEGORIES = ["Pago tarjeta", "Transferencia entre cuentas", "Retiro efectivo"]
+CATEGORIES = INCOME_CATEGORIES + EXPENSE_CATEGORIES + SAVINGS_CATEGORIES + TRANSFER_CATEGORIES
+TRANSACTION_TYPES = ["Ingreso", "Gasto", "Ahorro", "Venta USD", "Transferencia"]
 
 DATE_RE = re.compile(r"^(\d{2}/\d{2}/\d{4})\s+(\d+)\s+(.*)$")
 AMOUNT_RE = re.compile(r"(-?Q[\d,]+\.\d{2})\s+(Q[\d,]+\.\d{2})$")
@@ -107,17 +111,53 @@ def init_db() -> None:
             );
             """
         )
+        migrate_existing_data(conn)
         if conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0] == 0:
             seed_examples(conn)
+
+
+def migrate_existing_data(conn: sqlite3.Connection) -> None:
+    replacements = [
+        ("GYT - Cuenta sueldo", "GYT - Cuenta ahorro sueldo"),
+        ("BAM - Cuenta sueldo", "BAC - Cuenta ahorro USD"),
+        ("BAM", "BAC"),
+    ]
+    for old, new in replacements:
+        conn.execute("UPDATE transactions SET account=? WHERE account=?", (new, old))
+        conn.execute("UPDATE imports SET account=? WHERE account=?", (new, old))
+        conn.execute("UPDATE imports SET bank=? WHERE bank=?", (new, old))
+    conn.execute(
+        """
+        UPDATE transactions
+        SET category='Sueldo GYT'
+        WHERE type='Ingreso' AND category='Salario' AND account='GYT - Cuenta ahorro sueldo'
+        """
+    )
+    conn.execute(
+        """
+        UPDATE transactions
+        SET category='Sueldo BAC USD'
+        WHERE type='Ingreso' AND category='Salario' AND account='BAC - Cuenta ahorro USD'
+        """
+    )
+    conn.execute(
+        """
+        UPDATE transactions
+        SET description=REPLACE(description, 'BAM', 'BAC')
+        WHERE description LIKE '%BAM%'
+        """
+    )
 
 
 def seed_examples(conn: sqlite3.Connection) -> None:
     now = datetime.now().isoformat(timespec="seconds")
     rows = [
-        ("2026-06-01", "Ingreso", "Salario", "Sueldo depositado en GYT", "GYT - Cuenta sueldo", 4500, None, now),
-        ("2026-06-15", "Ingreso", "Salario", "Sueldo depositado en BAM", "BAM - Cuenta sueldo", 2500, None, now),
-        ("2026-06-02", "Gasto", "Alquiler / vivienda", "Renta", "GYT - Cuenta sueldo", 1500, None, now),
-        ("2026-06-03", "Gasto", "Supermercado", "Compra semanal", "GYT - Tarjeta debito", 420, None, now),
+        ("2026-06-01", "Ingreso", "Sueldo GYT", "Sueldo depositado en GYT", "GYT - Cuenta ahorro sueldo", 4500, None, now),
+        ("2026-06-15", "Ingreso", "Sueldo BAC USD", "Sueldo depositado en BAC USD", "BAC - Cuenta ahorro USD", 2500, None, now),
+        ("2026-06-20", "Ahorro", "Ahorro Banrural", "Sobrante movido a Banrural", "Banrural - Cuenta ahorro", 1000, None, now),
+        ("2026-06-22", "Venta USD", "Venta USD", "Venta manual de dolares", "Banrural - Cuenta ahorro", 1500, None, now),
+        ("2026-06-02", "Gasto", "Alquiler / vivienda", "Renta", "GYT - Cuenta ahorro sueldo", 1500, None, now),
+        ("2026-06-03", "Gasto", "Supermercado", "Compra semanal", "GYT - Tarjeta credito", 420, None, now),
         ("2026-06-05", "Gasto", "Transporte", "Gasolina / bus", "Efectivo", 180, None, now),
     ]
     conn.executemany(
@@ -168,8 +208,12 @@ def suggest_category(description: str, amount: float) -> str:
     desc = description.upper()
     if amount > 0:
         if any(token in desc for token in ("PLANILLA", "SALARIO", "SUELDO")):
-            return "Salario"
+            return "Sueldo GYT"
+        if "CREDITO ACH" in desc:
+            return "Otros ingresos"
         return "Otros ingresos"
+    if any(token in desc for token in ("PAGO TARJETA", "MASTER CARD", "VISA")):
+        return "Pago tarjeta"
     if any(token in desc for token in ("TIGO", "CLARO", "EEGSA", "ENERGUATE", "AGUA")):
         return "Servicios"
     if any(token in desc for token in ("SUPER", "WALMART", "DESPENSA", "PAIZ")):
@@ -181,10 +225,24 @@ def suggest_category(description: str, amount: float) -> str:
     if any(token in desc for token in ("UDEMY", "UNIVERS", "COLEG")):
         return "Educacion"
     if any(token in desc for token in ("TARJETA", "MASTER", "VISA")):
-        return "Deudas"
+        return "Pago tarjeta"
     if any(token in desc for token in ("UBER", "GAS", "SHELL", "UNO ")):
         return "Transporte"
     return "Otros gastos"
+
+
+def suggest_type(description: str, signed_amount: float, product: str = "") -> str:
+    desc = description.upper()
+    product_upper = product.upper()
+    if signed_amount > 0:
+        if "USD" in product_upper or "DOLAR" in product_upper:
+            return "Ingreso"
+        return "Ingreso"
+    if any(token in desc for token in ("PAGO TARJETA", "MASTER CARD", "VISA")):
+        return "Transferencia"
+    if any(token in desc for token in ("BANRURAL", "AHORRO")):
+        return "Ahorro"
+    return "Gasto"
 
 
 def parse_gyt_pdf(path: Path, source_name: str) -> list[dict]:
@@ -225,13 +283,13 @@ def parse_gyt_pdf(path: Path, source_name: str) -> list[dict]:
         amount_text, saldo_text = amounts.groups()
         description = remainder[: amounts.start() - start.end(2) - 1].strip()
         signed_amount = money_to_number(amount_text)
-        tipo = "Ingreso" if signed_amount > 0 else "Gasto"
+        tipo = suggest_type(description, signed_amount, "Cuenta monetaria / debito")
         rows.append(
             {
                 "source_name": source_name,
                 "bank": "GYT",
                 "product": "Cuenta monetaria / debito",
-                "account": "GYT - Cuenta sueldo",
+                "account": "GYT - Cuenta ahorro sueldo",
                 "document": doc,
                 "date": normalize_date(fecha),
                 "description": description,
@@ -268,7 +326,7 @@ def parse_csv_upload(data: bytes, source_name: str, bank: str, product: str, acc
             monto = credito if credito else -abs(debito)
         if not fecha or not desc or monto == 0:
             continue
-        tipo = "Ingreso" if monto > 0 else "Gasto"
+        tipo = suggest_type(desc, monto, product)
         rows.append(
             {
                 "source_name": source_name,
@@ -337,6 +395,9 @@ class App(BaseHTTPRequestHandler):
             self.update_import(body)
         elif parsed.path == "/api/imports/commit":
             self.commit_imports()
+        elif parsed.path == "/api/transactions":
+            body = self.read_json()
+            self.create_transaction(body)
         else:
             self.send_error(404)
 
@@ -351,7 +412,17 @@ class App(BaseHTTPRequestHandler):
 
     def handle_api_get(self, path: str, query: dict) -> None:
         if path == "/api/meta":
-            self.send_json({"accounts": ACCOUNTS, "incomeCategories": INCOME_CATEGORIES, "expenseCategories": EXPENSE_CATEGORIES})
+            self.send_json(
+                {
+                    "accounts": ACCOUNTS,
+                    "incomeCategories": INCOME_CATEGORIES,
+                    "expenseCategories": EXPENSE_CATEGORIES,
+                    "savingsCategories": SAVINGS_CATEGORIES,
+                    "transferCategories": TRANSFER_CATEGORIES,
+                    "categories": CATEGORIES,
+                    "transactionTypes": TRANSACTION_TYPES,
+                }
+            )
         elif path == "/api/imports":
             with db_connection() as conn:
                 rows = conn.execute("SELECT * FROM imports ORDER BY date, id").fetchall()
@@ -369,8 +440,8 @@ class App(BaseHTTPRequestHandler):
     def handle_import(self) -> None:
         fields, files = parse_multipart(self)
         bank = fields.get("bank", "GYT")
-        product = fields.get("product", "Cuenta monetaria / debito")
-        account = fields.get("account", "GYT - Cuenta sueldo")
+        product = fields.get("product", "Cuenta ahorro / debito")
+        account = fields.get("account", "GYT - Cuenta ahorro sueldo")
         if "file" not in files:
             self.send_error(400, "Falta archivo")
             return
@@ -401,18 +472,56 @@ class App(BaseHTTPRequestHandler):
                 conn.execute(f"UPDATE imports SET {assignments} WHERE id=?", [*updates.values(), import_id])
         self.send_json({"ok": True})
 
+    def create_transaction(self, body: dict) -> None:
+        tx_type = body.get("type", "Gasto")
+        category = body.get("category", "Otros gastos")
+        description = body.get("description", "").strip() or "Movimiento manual"
+        account = body.get("account", "Otro")
+        amount = float(body.get("amount") or 0)
+        date = normalize_date(body.get("date", datetime.now().strftime("%Y-%m-%d")))
+        if amount <= 0:
+            self.send_error(400, "El monto debe ser mayor a cero")
+            return
+        usd_amount = body.get("usdAmount")
+        exchange_rate = body.get("exchangeRate")
+        if tx_type == "Venta USD":
+            details = []
+            if usd_amount:
+                details.append(f"USD {usd_amount}")
+            if exchange_rate:
+                details.append(f"TC {exchange_rate}")
+            if details:
+                description = f"{description} ({', '.join(details)})"
+        now = datetime.now().isoformat(timespec="seconds")
+        with db_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO transactions
+                (date, type, category, description, account, amount, source_import_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, NULL, ?)
+                """,
+                (date, tx_type, category, description, account, amount, now),
+            )
+        self.send_json({"ok": True})
+
     def commit_imports(self) -> None:
         now = datetime.now().isoformat(timespec="seconds")
         with db_connection() as conn:
             rows = conn.execute(
                 """
                 SELECT * FROM imports
-                WHERE action IN ('Pasar a Ingresos', 'Pasar a Gastos')
+                WHERE action IN ('Pasar a Ingresos', 'Pasar a Gastos', 'Registrar como Ahorro', 'Registrar venta USD', 'Registrar transferencia')
                 ORDER BY date, id
                 """
             ).fetchall()
             for row in rows:
-                tx_type = "Ingreso" if row["action"] == "Pasar a Ingresos" else "Gasto"
+                tx_type = {
+                    "Pasar a Ingresos": "Ingreso",
+                    "Pasar a Gastos": "Gasto",
+                    "Registrar como Ahorro": "Ahorro",
+                    "Registrar venta USD": "Venta USD",
+                    "Registrar transferencia": "Transferencia",
+                }[row["action"]]
                 conn.execute(
                     """
                     INSERT INTO transactions
@@ -496,20 +605,29 @@ def parse_multipart(handler: BaseHTTPRequestHandler) -> tuple[dict, dict]:
 def build_dashboard(month: str) -> dict:
     with db_connection() as conn:
         txs = conn.execute("SELECT * FROM transactions WHERE substr(date,1,7)=? ORDER BY date", (month,)).fetchall()
-    income = sum(row["amount"] for row in txs if row["type"] == "Ingreso")
+    base_income = sum(row["amount"] for row in txs if row["type"] == "Ingreso")
+    usd_sales = sum(row["amount"] for row in txs if row["type"] == "Venta USD")
+    income = base_income + usd_sales
     expenses = sum(row["amount"] for row in txs if row["type"] == "Gasto")
+    savings = sum(row["amount"] for row in txs if row["type"] == "Ahorro")
+    transfers = sum(row["amount"] for row in txs if row["type"] == "Transferencia")
     by_category: dict[str, float] = {}
     by_account: dict[str, float] = {}
     for row in txs:
         if row["type"] == "Gasto":
             by_category[row["category"]] = by_category.get(row["category"], 0) + row["amount"]
-        by_account[row["account"]] = by_account.get(row["account"], 0) + (row["amount"] if row["type"] == "Ingreso" else -row["amount"])
+        account_delta = row["amount"] if row["type"] in ("Ingreso", "Ahorro", "Venta USD") else -row["amount"]
+        by_account[row["account"]] = by_account.get(row["account"], 0) + account_delta
     return {
         "month": month,
+        "baseIncome": base_income,
+        "usdSales": usd_sales,
         "income": income,
         "expenses": expenses,
-        "balance": income - expenses,
-        "savingsRate": (income - expenses) / income if income else 0,
+        "savings": savings,
+        "transfers": transfers,
+        "balance": income - expenses - savings,
+        "savingsRate": savings / income if income else 0,
         "byCategory": sorted(by_category.items(), key=lambda x: x[1], reverse=True),
         "byAccount": sorted(by_account.items(), key=lambda x: x[0]),
         "transactions": [rowdict(row) for row in txs],

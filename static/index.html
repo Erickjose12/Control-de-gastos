@@ -29,11 +29,11 @@
           <strong id="expenseKpi">Q0.00</strong>
         </article>
         <article class="kpi balance">
-          <span>Balance</span>
+          <span>Disponible</span>
           <strong id="balanceKpi">Q0.00</strong>
         </article>
         <article class="kpi rate">
-          <span>Ahorro</span>
+          <span>Ahorro real</span>
           <strong id="rateKpi">0%</strong>
         </article>
       </section>
@@ -59,8 +59,10 @@
             <label>
               Producto
               <select name="product">
-                <option>Cuenta monetaria / debito</option>
+                <option>Cuenta ahorro / debito</option>
                 <option>Tarjeta de credito</option>
+                <option>Cuenta ahorro USD</option>
+                <option>Cuenta ahorro Banrural</option>
               </select>
             </label>
             <label>
@@ -78,6 +80,53 @@
           </div>
           <div id="categoryBars" class="bars"></div>
         </section>
+      </section>
+
+      <section class="panel manual-panel">
+        <div class="panel-head">
+          <h2>Registro manual</h2>
+        </div>
+        <form id="manualForm" class="manual-form">
+          <label>
+            Fecha
+            <input name="date" type="date" required />
+          </label>
+          <label>
+            Tipo
+            <select id="manualType" name="type">
+              <option>Ahorro</option>
+              <option>Venta USD</option>
+              <option>Ingreso</option>
+              <option>Gasto</option>
+              <option>Transferencia</option>
+            </select>
+          </label>
+          <label>
+            Categoria
+            <select id="manualCategory" name="category"></select>
+          </label>
+          <label>
+            Cuenta
+            <select id="manualAccount" name="account"></select>
+          </label>
+          <label>
+            Monto Q
+            <input name="amount" type="number" min="0.01" step="0.01" placeholder="0.00" required />
+          </label>
+          <label>
+            USD
+            <input name="usdAmount" type="number" min="0" step="0.01" placeholder="Opcional" />
+          </label>
+          <label>
+            Tipo cambio
+            <input name="exchangeRate" type="number" min="0" step="0.0001" placeholder="Opcional" />
+          </label>
+          <label class="wide-field">
+            Descripcion
+            <input name="description" type="text" placeholder="Ahorro Banrural, venta USD, ajuste manual..." />
+          </label>
+          <button class="primary" type="submit">Guardar</button>
+        </form>
       </section>
 
       <section class="panel">
