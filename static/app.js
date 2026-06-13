@@ -185,7 +185,6 @@ async function loadExchangeRate() {
 }
 
 function calculateGtqFromUsd() {
-  if ($("manualType").value !== "Venta USD") return;
   const form = $("manualForm");
   const usd = Number(form.elements.usdAmount.value || 0);
   const rate = Number(form.elements.exchangeRate.value || 0);
@@ -235,7 +234,15 @@ $("commitBtn").addEventListener("click", async () => {
 });
 
 $("manualType").addEventListener("change", renderManualCategories);
-$("manualForm").elements.usdAmount.addEventListener("input", calculateGtqFromUsd);
+$("manualForm").elements.usdAmount.addEventListener("input", () => {
+  const form = $("manualForm");
+  const usd = Number(form.elements.usdAmount.value || 0);
+  if (usd > 0 && $("manualType").value !== "Venta USD") {
+    $("manualType").value = "Venta USD";
+    renderManualCategories();
+  }
+  calculateGtqFromUsd();
+});
 $("exchangeRateInput").addEventListener("input", calculateGtqFromUsd);
 
 $("manualForm").addEventListener("submit", async (event) => {
