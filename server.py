@@ -204,6 +204,17 @@ def normalize_date(value: str) -> str:
     return text
 
 
+def infer_product(account: str) -> str:
+    account_upper = account.upper()
+    if "TARJETA CREDITO" in account_upper:
+        return "Tarjeta de credito"
+    if "USD" in account_upper or "BAC" in account_upper:
+        return "Cuenta ahorro USD"
+    if "BANRURAL" in account_upper:
+        return "Cuenta ahorro Banrural"
+    return "Cuenta ahorro / debito"
+
+
 def suggest_category(description: str, amount: float) -> str:
     desc = description.upper()
     if amount > 0:
@@ -288,7 +299,7 @@ def parse_gyt_pdf(path: Path, source_name: str) -> list[dict]:
             {
                 "source_name": source_name,
                 "bank": "GYT",
-                "product": "Cuenta monetaria / debito",
+                "product": "Cuenta ahorro / debito",
                 "account": "GYT - Cuenta ahorro sueldo",
                 "document": doc,
                 "date": normalize_date(fecha),
@@ -440,8 +451,8 @@ class App(BaseHTTPRequestHandler):
     def handle_import(self) -> None:
         fields, files = parse_multipart(self)
         bank = fields.get("bank", "GYT")
-        product = fields.get("product", "Cuenta ahorro / debito")
         account = fields.get("account", "GYT - Cuenta ahorro sueldo")
+        product = fields.get("product") or infer_product(account)
         if "file" not in files:
             self.send_error(400, "Falta archivo")
             return
