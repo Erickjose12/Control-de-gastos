@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Finanzas Local</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div>
+          <h1>Finanzas Local</h1>
+          <p>Control privado de ingresos, gastos e importaciones bancarias.</p>
+        </div>
+        <label class="month-picker">
+          <span>Mes</span>
+          <input id="monthInput" type="month" value="2026-06" />
+        </label>
+      </header>
+
+      <section class="kpis" aria-label="Resumen mensual">
+        <article class="kpi income">
+          <span>Ingresos</span>
+          <strong id="incomeKpi">Q0.00</strong>
+        </article>
+        <article class="kpi expense">
+          <span>Gastos</span>
+          <strong id="expenseKpi">Q0.00</strong>
+        </article>
+        <article class="kpi balance">
+          <span>Balance</span>
+          <strong id="balanceKpi">Q0.00</strong>
+        </article>
+        <article class="kpi rate">
+          <span>Ahorro</span>
+          <strong id="rateKpi">0%</strong>
+        </article>
+      </section>
+
+      <section class="layout">
+        <section class="panel import-panel">
+          <div class="panel-head">
+            <h2>Importar banco</h2>
+            <button id="clearImportsBtn" class="ghost" type="button">Limpiar bandeja</button>
+          </div>
+          <form id="importForm" class="import-form">
+            <label>
+              Archivo CSV o PDF
+              <input id="fileInput" name="file" type="file" accept=".csv,.pdf" required />
+            </label>
+            <label>
+              Banco
+              <select name="bank">
+                <option>GYT</option>
+                <option>BAM</option>
+              </select>
+            </label>
+            <label>
+              Producto
+              <select name="product">
+                <option>Cuenta monetaria / debito</option>
+                <option>Tarjeta de credito</option>
+              </select>
+            </label>
+            <label>
+              Cuenta
+              <select id="accountSelect" name="account"></select>
+            </label>
+            <button class="primary" type="submit">Importar</button>
+          </form>
+          <p id="importStatus" class="status"></p>
+        </section>
+
+        <section class="panel chart-panel">
+          <div class="panel-head">
+            <h2>Gasto por categoria</h2>
+          </div>
+          <div id="categoryBars" class="bars"></div>
+        </section>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Bandeja de revision</h2>
+          <button id="commitBtn" class="primary" type="button">Registrar seleccionados</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Cuenta</th>
+                <th>Descripcion</th>
+                <th>Tipo</th>
+                <th>Categoria</th>
+                <th>Monto</th>
+                <th>Accion</th>
+              </tr>
+            </thead>
+            <tbody id="importsBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Movimientos del mes</h2>
+        </div>
+        <div class="table-wrap compact">
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Tipo</th>
+                <th>Categoria</th>
+                <th>Cuenta</th>
+                <th>Descripcion</th>
+                <th>Monto</th>
+              </tr>
+            </thead>
+            <tbody id="transactionsBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>

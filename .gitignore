@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local financial data
+data/*.db
+data/*.db-*
+data/*.sqlite
+data/*.sqlite3
+
+# Bank exports and sensitive files
+*.pdf
+*.csv
+*.xlsx
+*.xlsm
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
