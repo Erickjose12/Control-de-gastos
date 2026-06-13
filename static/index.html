@@ -14,19 +14,20 @@
           <span>Control personal</span>
         </div>
         <nav class="nav-menu" aria-label="Menu principal">
-          <button class="nav-item active" type="button">Dashboard</button>
+          <button class="nav-item active" type="button" data-view="summaryView">Dashboard</button>
+          <button class="nav-item" type="button" data-view="movementsView">Movimientos financieros</button>
         </nav>
         <div class="sidebar-note">
           <span>Proximamente</span>
-          <p>Importaciones, cuentas y reportes.</p>
+          <p>Cuentas, reportes y reglas automaticas.</p>
         </div>
       </aside>
 
       <main class="app">
         <header class="topbar">
           <div>
-            <h1>Dashboard</h1>
-            <p>Resumen mensual de ingresos, gastos, ahorro y movimientos.</p>
+            <h1 id="viewTitle">Dashboard</h1>
+            <p id="viewSubtitle">Resumen mensual de ingresos, gastos y ahorro.</p>
           </div>
           <label class="month-picker">
             <span>Mes</span>
@@ -34,147 +35,160 @@
           </label>
         </header>
 
-      <section class="kpis" aria-label="Resumen mensual">
-        <article class="kpi income">
-          <span>Ingresos</span>
-          <strong id="incomeKpi">Q0.00</strong>
-        </article>
-        <article class="kpi expense">
-          <span>Gastos</span>
-          <strong id="expenseKpi">Q0.00</strong>
-        </article>
-        <article class="kpi balance">
-          <span>Disponible</span>
-          <strong id="balanceKpi">Q0.00</strong>
-        </article>
-        <article class="kpi rate">
-          <span>Ahorro real</span>
-          <strong id="rateKpi">0%</strong>
-        </article>
-      </section>
+        <section id="summaryView" class="view-section active">
+          <section class="kpis" aria-label="Resumen mensual">
+            <article class="kpi income">
+              <span>Ingresos</span>
+              <strong id="incomeKpi">Q0.00</strong>
+            </article>
+            <article class="kpi expense">
+              <span>Gastos</span>
+              <strong id="expenseKpi">Q0.00</strong>
+            </article>
+            <article class="kpi rate">
+              <span>Ahorro real</span>
+              <strong id="rateKpi">Q0.00</strong>
+            </article>
+            <article class="kpi balance">
+              <span>Disponible</span>
+              <strong id="balanceKpi">Q0.00</strong>
+            </article>
+          </section>
 
-      <section class="layout">
-        <section class="panel import-panel">
-          <div class="panel-head">
-            <h2>Importar banco</h2>
-            <button id="clearImportsBtn" class="ghost" type="button">Limpiar bandeja</button>
-          </div>
-          <form id="importForm" class="import-form">
-            <label>
-              Archivo CSV o PDF
-              <input id="fileInput" name="file" type="file" accept=".csv,.pdf" required />
-            </label>
-            <label>
-              Banco
-              <select name="bank">
-                <option>GYT</option>
-                <option>BAC</option>
-                <option>Banrural</option>
-              </select>
-            </label>
-            <label>
-              Cuenta
-              <select id="accountSelect" name="account"></select>
-            </label>
-            <button class="primary" type="submit">Importar</button>
-          </form>
-          <p id="importStatus" class="status"></p>
+          <section class="summary-grid">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Gasto por categoria</h2>
+              </div>
+              <div id="categoryBars" class="bars"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Resumen de cuentas</h2>
+              </div>
+              <div id="accountSummary" class="account-summary"></div>
+            </section>
+          </section>
         </section>
 
-        <section class="panel chart-panel">
-          <div class="panel-head">
-            <h2>Gasto por categoria</h2>
-          </div>
-          <div id="categoryBars" class="bars"></div>
+        <section id="movementsView" class="view-section">
+          <section class="layout">
+            <section class="panel import-panel">
+              <div class="panel-head">
+                <h2>Importar banco</h2>
+                <button id="clearImportsBtn" class="ghost" type="button">Limpiar bandeja</button>
+              </div>
+              <form id="importForm" class="import-form">
+                <label>
+                  Archivo CSV o PDF
+                  <input id="fileInput" name="file" type="file" accept=".csv,.pdf" required />
+                </label>
+                <label>
+                  Banco
+                  <select name="bank">
+                    <option>GYT</option>
+                    <option>BAC</option>
+                    <option>Banrural</option>
+                  </select>
+                </label>
+                <label>
+                  Cuenta
+                  <select id="accountSelect" name="account"></select>
+                </label>
+                <button class="primary" type="submit">Importar</button>
+              </form>
+              <p id="importStatus" class="status"></p>
+            </section>
+
+            <section class="panel manual-panel">
+              <div class="panel-head">
+                <h2>Registro manual</h2>
+              </div>
+              <form id="manualForm" class="manual-form">
+                <label>
+                  Fecha
+                  <input name="date" type="date" required />
+                </label>
+                <label>
+                  Tipo
+                  <select id="manualType" name="type">
+                    <option>Ahorro</option>
+                    <option>Venta USD</option>
+                    <option>Ingreso</option>
+                    <option>Gasto</option>
+                    <option>Transferencia</option>
+                  </select>
+                </label>
+                <label>
+                  Cuenta
+                  <select id="manualAccount" name="account"></select>
+                </label>
+                <label>
+                  Monto Q
+                  <input name="amount" type="number" min="0.01" step="0.01" placeholder="0.00" required />
+                </label>
+                <label>
+                  USD
+                  <input name="usdAmount" type="number" min="0" step="0.01" placeholder="Opcional" />
+                </label>
+                <label>
+                  Tipo cambio
+                  <input id="exchangeRateInput" name="exchangeRate" type="number" min="0" step="0.0001" placeholder="Auto USD-GTQ" />
+                </label>
+                <label class="wide-field">
+                  Descripcion
+                  <input name="description" type="text" placeholder="Ahorro Banrural, venta USD, ajuste manual..." />
+                </label>
+                <button class="primary" type="submit">Guardar</button>
+              </form>
+            </section>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Bandeja de revision</h2>
+              <button id="commitBtn" class="primary" type="button">Registrar seleccionados</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Cuenta</th>
+                    <th>Descripcion</th>
+                    <th>Tipo</th>
+                    <th>Categoria</th>
+                    <th>Monto</th>
+                    <th>Accion</th>
+                  </tr>
+                </thead>
+                <tbody id="importsBody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Movimientos del mes</h2>
+            </div>
+            <div class="table-wrap compact">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Tipo</th>
+                    <th>Categoria</th>
+                    <th>Cuenta</th>
+                    <th>Descripcion</th>
+                    <th>Monto</th>
+                  </tr>
+                </thead>
+                <tbody id="transactionsBody"></tbody>
+              </table>
+            </div>
+          </section>
         </section>
-      </section>
-
-      <section class="panel manual-panel">
-        <div class="panel-head">
-          <h2>Registro manual</h2>
-        </div>
-        <form id="manualForm" class="manual-form">
-          <label>
-            Fecha
-            <input name="date" type="date" required />
-          </label>
-          <label>
-            Tipo
-            <select id="manualType" name="type">
-              <option>Ahorro</option>
-              <option>Venta USD</option>
-              <option>Ingreso</option>
-              <option>Gasto</option>
-              <option>Transferencia</option>
-            </select>
-          </label>
-          <label>
-            Cuenta
-            <select id="manualAccount" name="account"></select>
-          </label>
-          <label>
-            Monto Q
-            <input name="amount" type="number" min="0.01" step="0.01" placeholder="0.00" required />
-          </label>
-          <label>
-            USD
-            <input name="usdAmount" type="number" min="0" step="0.01" placeholder="Opcional" />
-          </label>
-          <label>
-            Tipo cambio
-            <input id="exchangeRateInput" name="exchangeRate" type="number" min="0" step="0.0001" placeholder="Auto USD-GTQ" />
-          </label>
-          <label class="wide-field">
-            Descripcion
-            <input name="description" type="text" placeholder="Ahorro Banrural, venta USD, ajuste manual..." />
-          </label>
-          <button class="primary" type="submit">Guardar</button>
-        </form>
-      </section>
-
-      <section class="panel">
-        <div class="panel-head">
-          <h2>Bandeja de revision</h2>
-          <button id="commitBtn" class="primary" type="button">Registrar seleccionados</button>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Cuenta</th>
-                <th>Descripcion</th>
-                <th>Tipo</th>
-                <th>Categoria</th>
-                <th>Monto</th>
-                <th>Accion</th>
-              </tr>
-            </thead>
-            <tbody id="importsBody"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="panel">
-        <div class="panel-head">
-          <h2>Movimientos del mes</h2>
-        </div>
-        <div class="table-wrap compact">
-          <table>
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Tipo</th>
-                <th>Categoria</th>
-                <th>Cuenta</th>
-                <th>Descripcion</th>
-                <th>Monto</th>
-              </tr>
-            </thead>
-            <tbody id="transactionsBody"></tbody>
-          </table>
-        </div>
-      </section>
       </main>
     </div>
     <script src="/app.js"></script>

@@ -47,6 +47,7 @@ async function load() {
   $("manualAccount").innerHTML = optionList(state.meta.accounts, "Banrural - Cuenta ahorro");
   $("manualForm").elements.date.value = new Date().toISOString().slice(0, 10);
   updateManualDefaults();
+  bindNavigation();
   await refreshAll();
 }
 
@@ -70,7 +71,7 @@ function renderDashboard() {
   $("incomeKpi").textContent = fmtMoney.format(data.income);
   $("expenseKpi").textContent = fmtMoney.format(data.expenses);
   $("balanceKpi").textContent = fmtMoney.format(data.balance);
-  $("rateKpi").textContent = `${fmtMoney.format(data.savings)} · ${Math.round(data.savingsRate * 100)}%`;
+  $("rateKpi").textContent = `${fmtMoney.format(data.savings)} / ${Math.round(data.savingsRate * 100)}%`;
 
   const max = Math.max(...data.byCategory.map(([, amount]) => amount), 0);
   $("categoryBars").innerHTML =
@@ -86,6 +87,20 @@ function renderDashboard() {
                   <span>${fmtMoney.format(amount)}</span>
                 </div>
                 <div class="bar-track"><div class="bar-fill" style="width:${width}%"></div></div>
+              </div>`;
+          })
+          .join("");
+
+  $("accountSummary").innerHTML =
+    data.byAccount.length === 0
+      ? `<p class="empty">Sin movimientos por cuenta en este mes.</p>`
+      : data.byAccount
+          .map(([account, amount]) => {
+            const tone = amount >= 0 ? "positive" : "negative";
+            return `
+              <div class="account-row">
+                <span>${escapeHtml(account)}</span>
+                <strong class="${tone}">${fmtMoney.format(amount)}</strong>
               </div>`;
           })
           .join("");
@@ -170,7 +185,7 @@ async function loadExchangeRate() {
     $("importStatus").textContent = `Tipo de cambio USD-GTQ actualizado: ${data.rate.toFixed(4)}`;
     calculateGtqFromUsd();
   } catch (error) {
-    $("importStatus").textContent = "No pude obtener el tipo de cambio. Podés ingresarlo manualmente.";
+    $("importStatus").textContent = "No pude obtener el tipo de cambio. Podes ingresarlo manualmente.";
     console.error(error);
   }
 }
@@ -182,6 +197,26 @@ function calculateGtqFromUsd() {
   if (usd > 0 && rate > 0) {
     form.elements.amount.value = (usd * rate).toFixed(2);
   }
+}
+
+function setActiveView(viewId) {
+  document.querySelectorAll(".view-section").forEach((section) => {
+    section.classList.toggle("active", section.id === viewId);
+  });
+  document.querySelectorAll(".nav-item").forEach((button) => {
+    button.classList.toggle("active", button.dataset.view === viewId);
+  });
+  const isSummary = viewId === "summaryView";
+  $("viewTitle").textContent = isSummary ? "Dashboard" : "Movimientos financieros";
+  $("viewSubtitle").textContent = isSummary
+    ? "Resumen mensual de ingresos, gastos y ahorro."
+    : "Importa estados de cuenta, registra ajustes y revisa movimientos.";
+}
+
+function bindNavigation() {
+  document.querySelectorAll(".nav-item").forEach((button) => {
+    button.addEventListener("click", () => setActiveView(button.dataset.view));
+  });
 }
 
 async function updateImport(id, field, value) {

@@ -192,10 +192,24 @@ input[type="file"] {
   border-left-color: var(--amber);
 }
 
+.view-section {
+  display: none;
+}
+
+.view-section.active {
+  display: block;
+}
+
 .layout {
   display: grid;
   gap: 16px;
   grid-template-columns: 1fr 1fr;
+}
+
+.summary-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1.2fr 0.8fr;
 }
 
 .panel {
@@ -372,6 +386,43 @@ td select {
   min-width: 3px;
 }
 
+.account-summary {
+  display: grid;
+  gap: 0;
+}
+
+.account-row {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  padding: 12px 14px;
+}
+
+.account-row:last-child {
+  border-bottom: 0;
+}
+
+.account-row span {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.account-row strong {
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.account-row .positive {
+  color: var(--green);
+}
+
+.account-row .negative {
+  color: var(--red);
+}
+
 .empty {
   color: var(--muted);
   padding: 14px;
@@ -411,7 +462,8 @@ td select {
   }
 
   .topbar,
-  .layout {
+  .layout,
+  .summary-grid {
     grid-template-columns: 1fr;
   }
 
