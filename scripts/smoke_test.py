@@ -12,6 +12,8 @@ def main() -> None:
         server.DATA = Path(tmp)
         server.DB = server.DATA / "finanzas.db"
         server.init_db()
+        with server.db_connection() as conn:
+            server.seed_examples(conn)
         dashboard = server.build_dashboard("2026-06")
         assert dashboard["income"] == 8500.0
         assert dashboard["expenses"] == 2100.0

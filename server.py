@@ -114,8 +114,6 @@ def init_db() -> None:
             """
         )
         migrate_existing_data(conn)
-        if conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0] == 0:
-            seed_examples(conn)
 
 
 def migrate_existing_data(conn: sqlite3.Connection) -> None:
