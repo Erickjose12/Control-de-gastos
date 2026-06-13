@@ -46,7 +46,7 @@ async function load() {
   $("accountSelect").innerHTML = optionList(state.meta.accounts, "GYT - Cuenta ahorro sueldo");
   $("manualAccount").innerHTML = optionList(state.meta.accounts, "Banrural - Cuenta ahorro");
   $("manualForm").elements.date.value = new Date().toISOString().slice(0, 10);
-  renderManualCategories();
+  updateManualDefaults();
   await refreshAll();
 }
 
@@ -143,13 +143,6 @@ function renderImports() {
           .join("");
 }
 
-function categoriesForType(type) {
-  if (type === "Ingreso" || type === "Venta USD") return state.meta.incomeCategories;
-  if (type === "Ahorro") return state.meta.savingsCategories;
-  if (type === "Transferencia") return state.meta.transferCategories;
-  return state.meta.expenseCategories;
-}
-
 function defaultAccountForType(type) {
   if (type === "Ahorro" || type === "Venta USD") return "Banrural - Cuenta ahorro";
   if (type === "Ingreso") return "GYT - Cuenta ahorro sueldo";
@@ -157,10 +150,8 @@ function defaultAccountForType(type) {
   return "GYT - Cuenta ahorro sueldo";
 }
 
-function renderManualCategories() {
+function updateManualDefaults() {
   const type = $("manualType").value;
-  const categories = categoriesForType(type);
-  $("manualCategory").innerHTML = optionList(categories, categories[0]);
   $("manualAccount").innerHTML = optionList(state.meta.accounts, defaultAccountForType(type));
   if (type === "Venta USD") {
     loadExchangeRate();
@@ -233,13 +224,13 @@ $("commitBtn").addEventListener("click", async () => {
   await refreshAll();
 });
 
-$("manualType").addEventListener("change", renderManualCategories);
+$("manualType").addEventListener("change", updateManualDefaults);
 $("manualForm").elements.usdAmount.addEventListener("input", () => {
   const form = $("manualForm");
   const usd = Number(form.elements.usdAmount.value || 0);
   if (usd > 0 && $("manualType").value !== "Venta USD") {
     $("manualType").value = "Venta USD";
-    renderManualCategories();
+    updateManualDefaults();
   }
   calculateGtqFromUsd();
 });
@@ -259,7 +250,7 @@ $("manualForm").addEventListener("submit", async (event) => {
   form.reset();
   $("manualForm").elements.date.value = new Date().toISOString().slice(0, 10);
   $("manualType").value = currentType;
-  renderManualCategories();
+  updateManualDefaults();
   await loadDashboard();
 });
 

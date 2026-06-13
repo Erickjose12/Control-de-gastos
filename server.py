@@ -258,6 +258,22 @@ def suggest_type(description: str, signed_amount: float, product: str = "") -> s
     return "Gasto"
 
 
+def default_category_for_type(tx_type: str, account: str = "") -> str:
+    if tx_type == "Venta USD":
+        return "Venta USD"
+    if tx_type == "Ahorro":
+        return "Ahorro Banrural" if "Banrural" in account else "Ahorro extra"
+    if tx_type == "Transferencia":
+        return "Transferencia entre cuentas"
+    if tx_type == "Ingreso":
+        if "BAC" in account:
+            return "Sueldo BAC USD"
+        if "GYT" in account:
+            return "Sueldo GYT"
+        return "Otros ingresos"
+    return "Otros gastos"
+
+
 def parse_gyt_pdf(path: Path, source_name: str) -> list[dict]:
     if PdfReader is None:
         raise RuntimeError("pypdf no esta disponible")
@@ -512,9 +528,9 @@ class App(BaseHTTPRequestHandler):
 
     def create_transaction(self, body: dict) -> None:
         tx_type = body.get("type", "Gasto")
-        category = body.get("category", "Otros gastos")
-        description = body.get("description", "").strip() or "Movimiento manual"
         account = body.get("account", "Otro")
+        category = body.get("category") or default_category_for_type(tx_type, account)
+        description = body.get("description", "").strip() or "Movimiento manual"
         amount = float(body.get("amount") or 0)
         date = normalize_date(body.get("date", datetime.now().strftime("%Y-%m-%d")))
         if amount <= 0:
