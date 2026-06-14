@@ -487,7 +487,13 @@ class App(BaseHTTPRequestHandler):
             )
         elif path == "/api/imports":
             with db_connection() as conn:
-                rows = conn.execute("SELECT * FROM imports ORDER BY date, id").fetchall()
+                rows = conn.execute(
+                    """
+                    SELECT * FROM imports
+                    WHERE action NOT IN ('Registrado', 'Ignorar / transferencia')
+                    ORDER BY date, id
+                    """
+                ).fetchall()
             self.send_json([rowdict(row) for row in rows])
         elif path == "/api/transactions":
             with db_connection() as conn:
@@ -650,7 +656,8 @@ class App(BaseHTTPRequestHandler):
                     ),
                 )
                 conn.execute("UPDATE imports SET action='Registrado' WHERE id=?", (row["id"],))
-        self.send_json({"ok": True, "count": len(rows)})
+        month = rows[0]["date"][:7] if rows else None
+        self.send_json({"ok": True, "count": len(rows), "month": month})
 
     def serve_static(self, path: str) -> None:
         file_path = STATIC / ("index.html" if path in ("", "/") else path.lstrip("/"))

@@ -298,7 +298,11 @@ $("importForm").addEventListener("submit", async (event) => {
 $("commitBtn").addEventListener("click", async () => {
   const result = await api("/api/imports/commit", { method: "POST" });
   $("importStatus").textContent = `Registrados ${result.count} movimientos.`;
+  if (result.month) {
+    $("monthInput").value = result.month;
+  }
   await refreshAll();
+  setActiveView("summaryView");
 });
 
 $("manualType").addEventListener("change", updateManualDefaults);
