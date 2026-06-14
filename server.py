@@ -626,18 +626,12 @@ class App(BaseHTTPRequestHandler):
             rows = conn.execute(
                 """
                 SELECT * FROM imports
-                WHERE action IN ('Pasar a Ingresos', 'Pasar a Gastos', 'Registrar como Ahorro', 'Registrar venta USD', 'Registrar transferencia')
+                WHERE action NOT IN ('Registrado', 'Ignorar / transferencia')
                 ORDER BY date, id
                 """
             ).fetchall()
             for row in rows:
-                tx_type = {
-                    "Pasar a Ingresos": "Ingreso",
-                    "Pasar a Gastos": "Gasto",
-                    "Registrar como Ahorro": "Ahorro",
-                    "Registrar venta USD": "Venta USD",
-                    "Registrar transferencia": "Transferencia",
-                }[row["action"]]
+                tx_type = row["suggested_type"]
                 conn.execute(
                     """
                     INSERT INTO transactions

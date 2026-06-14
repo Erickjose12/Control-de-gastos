@@ -151,7 +151,7 @@ function renderImports() {
   const categories = state.meta.categories;
   $("importsBody").innerHTML =
     state.imports.length === 0
-      ? `<tr><td class="empty" colspan="7">No hay movimientos importados pendientes.</td></tr>`
+      ? `<tr><td class="empty" colspan="6">No hay movimientos importados pendientes.</td></tr>`
       : state.imports
           .map(
             (row) => `
@@ -172,11 +172,6 @@ function renderImports() {
                 </select>
               </td>
               <td class="money ${amountClassForType(row.suggested_type)}">${fmtMoney.format(row.amount)}</td>
-              <td>
-                <select data-field="action">
-                  ${optionList(["Pendiente", "Pasar a Ingresos", "Pasar a Gastos", "Registrar como Ahorro", "Registrar venta USD", "Registrar transferencia", "Ignorar / transferencia", "Registrado"], row.action)}
-                </select>
-              </td>
             </tr>`,
           )
           .join("");
