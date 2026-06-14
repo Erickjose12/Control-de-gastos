@@ -457,6 +457,9 @@ class App(BaseHTTPRequestHandler):
             with db_connection() as conn:
                 conn.execute("DELETE FROM imports")
             self.send_json({"ok": True})
+        elif parsed.path.startswith("/api/transactions/"):
+            transaction_id = int(parsed.path.rsplit("/", 1)[-1])
+            self.delete_transaction(transaction_id)
         else:
             self.send_error(404)
 
@@ -481,6 +484,14 @@ class App(BaseHTTPRequestHandler):
             with db_connection() as conn:
                 rows = conn.execute("SELECT * FROM transactions ORDER BY date DESC, id DESC").fetchall()
             self.send_json([rowdict(row) for row in rows])
+        elif path.startswith("/api/transactions/"):
+            transaction_id = int(path.rsplit("/", 1)[-1])
+            with db_connection() as conn:
+                row = conn.execute("SELECT * FROM transactions WHERE id=?", (transaction_id,)).fetchone()
+            if row is None:
+                self.send_error(404, "Movimiento no encontrado")
+            else:
+                self.send_json(rowdict(row))
         elif path == "/api/dashboard":
             month = query.get("month", [datetime.now().strftime("%Y-%m")])[0]
             self.send_json(build_dashboard(month))
@@ -523,6 +534,14 @@ class App(BaseHTTPRequestHandler):
             with db_connection() as conn:
                 conn.execute(f"UPDATE imports SET {assignments} WHERE id=?", [*updates.values(), import_id])
         self.send_json({"ok": True})
+
+    def delete_transaction(self, transaction_id: int) -> None:
+        with db_connection() as conn:
+            cursor = conn.execute("DELETE FROM transactions WHERE id=?", (transaction_id,))
+        if cursor.rowcount == 0:
+            self.send_error(404, "Movimiento no encontrado")
+        else:
+            self.send_json({"ok": True})
 
     def create_transaction(self, body: dict) -> None:
         tx_type = body.get("type", "Gasto")

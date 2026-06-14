@@ -181,6 +181,7 @@
                   <col class="col-account" />
                   <col class="col-description" />
                   <col class="col-money" />
+                  <col class="col-actions" />
                 </colgroup>
                 <thead>
                   <tr>
@@ -190,6 +191,7 @@
                     <th>Cuenta</th>
                     <th>Descripcion</th>
                     <th>Monto</th>
+                    <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody id="transactionsBody"></tbody>
@@ -198,6 +200,35 @@
           </section>
         </section>
       </main>
+    </div>
+
+    <div id="viewTransactionModal" class="modal" hidden>
+      <div class="modal-backdrop" data-close-modal></div>
+      <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="viewTransactionTitle">
+        <div class="modal-head">
+          <h2 id="viewTransactionTitle">Detalle del movimiento</h2>
+          <button class="icon-button" type="button" data-close-modal aria-label="Cerrar">X</button>
+        </div>
+        <div id="transactionDetail" class="detail-grid"></div>
+        <div class="modal-actions">
+          <button class="ghost" type="button" data-close-modal>Cerrar</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="deleteTransactionModal" class="modal" hidden>
+      <div class="modal-backdrop" data-close-modal></div>
+      <section class="modal-card small" role="dialog" aria-modal="true" aria-labelledby="deleteTransactionTitle">
+        <div class="modal-head">
+          <h2 id="deleteTransactionTitle">Eliminar movimiento</h2>
+          <button class="icon-button" type="button" data-close-modal aria-label="Cerrar">X</button>
+        </div>
+        <p id="deleteTransactionText" class="confirm-text"></p>
+        <div class="modal-actions">
+          <button class="ghost" type="button" data-close-modal>Cancelar</button>
+          <button id="confirmDeleteBtn" class="danger" type="button">Eliminar</button>
+        </div>
+      </section>
     </div>
     <script src="/app.js"></script>
   </body>

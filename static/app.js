@@ -11,6 +11,7 @@ const state = {
   imports: [],
   dashboard: null,
   exchangeRate: null,
+  deleteTransactionId: null,
 };
 
 const fmtMoney = new Intl.NumberFormat("es-GT", {
@@ -107,17 +108,21 @@ function renderDashboard() {
 
   $("transactionsBody").innerHTML =
     data.transactions.length === 0
-      ? `<tr><td class="empty" colspan="6">Sin movimientos registrados.</td></tr>`
+      ? `<tr><td class="empty" colspan="7">Sin movimientos registrados.</td></tr>`
       : data.transactions
           .map(
             (tx) => `
-            <tr>
+            <tr data-transaction-id="${tx.id}">
               <td>${escapeHtml(tx.date)}</td>
               <td>${escapeHtml(tx.type)}</td>
               <td>${escapeHtml(tx.category)}</td>
               <td>${escapeHtml(tx.account)}</td>
               <td class="description">${escapeHtml(tx.description)}</td>
               <td class="money">${fmtMoney.format(tx.amount)}</td>
+              <td class="actions-cell">
+                <button class="table-action" type="button" data-action="view">Ver</button>
+                <button class="table-action danger-text" type="button" data-action="delete">Eliminar</button>
+              </td>
             </tr>`,
           )
           .join("");
@@ -219,6 +224,45 @@ function bindNavigation() {
   });
 }
 
+function openModal(id) {
+  $(id).hidden = false;
+}
+
+function closeModals() {
+  document.querySelectorAll(".modal").forEach((modal) => {
+    modal.hidden = true;
+  });
+  state.deleteTransactionId = null;
+}
+
+function detailRow(label, value) {
+  return `
+    <div class="detail-label">${escapeHtml(label)}</div>
+    <div class="detail-value">${escapeHtml(value)}</div>`;
+}
+
+async function showTransactionDetail(transactionId) {
+  const tx = await api(`/api/transactions/${transactionId}`);
+  $("transactionDetail").innerHTML = [
+    detailRow("Fecha", tx.date),
+    detailRow("Tipo", tx.type),
+    detailRow("Categoria", tx.category),
+    detailRow("Cuenta", tx.account),
+    detailRow("Descripcion", tx.description),
+    detailRow("Monto", fmtMoney.format(tx.amount)),
+    detailRow("Creado", tx.created_at),
+    detailRow("Origen", tx.source_import_id ? `Importacion #${tx.source_import_id}` : "Registro manual"),
+  ].join("");
+  openModal("viewTransactionModal");
+}
+
+async function askDeleteTransaction(transactionId) {
+  const tx = await api(`/api/transactions/${transactionId}`);
+  state.deleteTransactionId = transactionId;
+  $("deleteTransactionText").textContent = `Vas a eliminar "${tx.description}" por ${fmtMoney.format(tx.amount)}. Esta accion no se puede deshacer.`;
+  openModal("deleteTransactionModal");
+}
+
 async function updateImport(id, field, value) {
   await api("/api/imports/update", {
     method: "POST",
@@ -293,6 +337,30 @@ $("clearImportsBtn").addEventListener("click", async () => {
   await api("/api/imports", { method: "DELETE" });
   $("importStatus").textContent = "Bandeja limpia.";
   await loadImports();
+});
+
+$("transactionsBody").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  const row = button.closest("tr[data-transaction-id]");
+  if (!row) return;
+  const transactionId = row.dataset.transactionId;
+  if (button.dataset.action === "view") {
+    await showTransactionDetail(transactionId);
+  } else if (button.dataset.action === "delete") {
+    await askDeleteTransaction(transactionId);
+  }
+});
+
+$("confirmDeleteBtn").addEventListener("click", async () => {
+  if (!state.deleteTransactionId) return;
+  await api(`/api/transactions/${state.deleteTransactionId}`, { method: "DELETE" });
+  closeModals();
+  await loadDashboard();
+});
+
+document.querySelectorAll("[data-close-modal]").forEach((element) => {
+  element.addEventListener("click", closeModals);
 });
 
 $("monthInput").addEventListener("change", loadDashboard);
