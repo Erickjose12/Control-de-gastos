@@ -350,7 +350,7 @@ table {
 }
 
 .col-money {
-  width: 140px;
+  width: 150px;
 }
 
 th,
@@ -378,6 +378,12 @@ td.money {
   font-weight: 700;
   text-align: right;
   white-space: nowrap;
+}
+
+.movements-table th:last-child,
+.movements-table td:last-child {
+  padding-right: 18px;
+  text-align: right;
 }
 
 td.description {
