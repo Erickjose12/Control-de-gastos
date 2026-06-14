@@ -176,6 +176,13 @@ input[type="file"] {
   font-size: 24px;
 }
 
+.kpi p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  margin: -2px 0 8px;
+}
+
 .kpi.income {
   border-left-color: var(--green);
 }
@@ -227,6 +234,13 @@ input[type="file"] {
   gap: 12px;
   justify-content: space-between;
   padding: 12px 14px;
+}
+
+.panel-head p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  margin-top: 4px;
 }
 
 .import-form {
