@@ -267,12 +267,17 @@ input[type="file"] {
 .manual-form {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(7, minmax(110px, 1fr)) auto;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   padding: 14px;
 }
 
 .wide-field {
-  grid-column: span 2;
+  grid-column: 1 / -1;
+}
+
+.manual-form .primary {
+  justify-self: start;
+  min-width: 140px;
 }
 
 .primary,
