@@ -216,6 +216,43 @@
       </section>
     </div>
 
+    <div id="editTransactionModal" class="modal" hidden>
+      <div class="modal-backdrop" data-close-modal></div>
+      <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="editTransactionTitle">
+        <div class="modal-head">
+          <h2 id="editTransactionTitle">Editar movimiento</h2>
+          <button class="icon-button" type="button" data-close-modal aria-label="Cerrar">X</button>
+        </div>
+        <form id="editTransactionForm" class="modal-form">
+          <input name="id" type="hidden" />
+          <label>
+            Fecha
+            <input name="date" type="date" required />
+          </label>
+          <label>
+            Tipo
+            <select name="type"></select>
+          </label>
+          <label>
+            Cuenta
+            <select name="account"></select>
+          </label>
+          <label>
+            Monto Q
+            <input name="amount" type="number" min="0.01" step="0.01" required />
+          </label>
+          <label class="wide-field">
+            Descripcion
+            <input name="description" type="text" required />
+          </label>
+          <div class="modal-actions form-actions">
+            <button class="ghost" type="button" data-close-modal>Cancelar</button>
+            <button class="primary" type="submit">Guardar cambios</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
     <div id="deleteTransactionModal" class="modal" hidden>
       <div class="modal-backdrop" data-close-modal></div>
       <section class="modal-card small" role="dialog" aria-modal="true" aria-labelledby="deleteTransactionTitle">

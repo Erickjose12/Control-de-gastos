@@ -120,7 +120,8 @@ function renderDashboard() {
               <td class="description">${escapeHtml(tx.description)}</td>
               <td class="money">${fmtMoney.format(tx.amount)}</td>
               <td class="actions-cell">
-                <button class="table-action" type="button" data-action="view">Ver</button>
+                <button class="table-action success-text" type="button" data-action="view">Ver</button>
+                <button class="table-action" type="button" data-action="edit">Editar</button>
                 <button class="table-action danger-text" type="button" data-action="delete">Eliminar</button>
               </td>
             </tr>`,
@@ -263,6 +264,18 @@ async function askDeleteTransaction(transactionId) {
   openModal("deleteTransactionModal");
 }
 
+async function showEditTransaction(transactionId) {
+  const tx = await api(`/api/transactions/${transactionId}`);
+  const form = $("editTransactionForm");
+  form.elements.id.value = tx.id;
+  form.elements.date.value = tx.date;
+  form.elements.type.innerHTML = optionList(state.meta.transactionTypes, tx.type);
+  form.elements.account.innerHTML = optionList(state.meta.accounts, tx.account);
+  form.elements.amount.value = tx.amount;
+  form.elements.description.value = tx.description;
+  openModal("editTransactionModal");
+}
+
 async function updateImport(id, field, value) {
   await api("/api/imports/update", {
     method: "POST",
@@ -347,9 +360,26 @@ $("transactionsBody").addEventListener("click", async (event) => {
   const transactionId = row.dataset.transactionId;
   if (button.dataset.action === "view") {
     await showTransactionDetail(transactionId);
+  } else if (button.dataset.action === "edit") {
+    await showEditTransaction(transactionId);
   } else if (button.dataset.action === "delete") {
     await askDeleteTransaction(transactionId);
   }
+});
+
+$("editTransactionForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = Object.fromEntries(new FormData(form).entries());
+  const transactionId = data.id;
+  delete data.id;
+  await api(`/api/transactions/${transactionId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  closeModals();
+  await loadDashboard();
 });
 
 $("confirmDeleteBtn").addEventListener("click", async () => {

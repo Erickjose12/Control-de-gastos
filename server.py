@@ -451,6 +451,15 @@ class App(BaseHTTPRequestHandler):
         else:
             self.send_error(404)
 
+    def do_PUT(self) -> None:
+        parsed = urlparse(self.path)
+        if parsed.path.startswith("/api/transactions/"):
+            transaction_id = int(parsed.path.rsplit("/", 1)[-1])
+            body = self.read_json()
+            self.update_transaction(transaction_id, body)
+        else:
+            self.send_error(404)
+
     def do_DELETE(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == "/api/imports":
@@ -538,6 +547,40 @@ class App(BaseHTTPRequestHandler):
     def delete_transaction(self, transaction_id: int) -> None:
         with db_connection() as conn:
             cursor = conn.execute("DELETE FROM transactions WHERE id=?", (transaction_id,))
+        if cursor.rowcount == 0:
+            self.send_error(404, "Movimiento no encontrado")
+        else:
+            self.send_json({"ok": True})
+
+    def update_transaction(self, transaction_id: int, body: dict) -> None:
+        tx_type = body.get("type", "Gasto")
+        account = body.get("account", "Otro")
+        category = body.get("category") or default_category_for_type(tx_type, account)
+        description = body.get("description", "").strip() or "Movimiento manual"
+        amount = float(body.get("amount") or 0)
+        date = normalize_date(body.get("date", datetime.now().strftime("%Y-%m-%d")))
+        if amount <= 0:
+            self.send_error(400, "El monto debe ser mayor a cero")
+            return
+        usd_amount = body.get("usdAmount")
+        exchange_rate = body.get("exchangeRate")
+        if tx_type == "Venta USD":
+            details = []
+            if usd_amount:
+                details.append(f"USD {usd_amount}")
+            if exchange_rate:
+                details.append(f"TC {exchange_rate}")
+            if details and "(" not in description:
+                description = f"{description} ({', '.join(details)})"
+        with db_connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE transactions
+                SET date=?, type=?, category=?, description=?, account=?, amount=?
+                WHERE id=?
+                """,
+                (date, tx_type, category, description, account, amount, transaction_id),
+            )
         if cursor.rowcount == 0:
             self.send_error(404, "Movimiento no encontrado")
         else:

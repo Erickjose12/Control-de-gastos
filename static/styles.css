@@ -354,7 +354,7 @@ table {
 }
 
 .col-actions {
-  width: 170px;
+  width: 230px;
 }
 
 th,
@@ -411,6 +411,12 @@ td.money {
   font-weight: 700;
   min-height: 30px;
   padding: 5px 9px;
+}
+
+.success-text {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
 }
 
 .danger-text {
@@ -549,6 +555,40 @@ td select {
 .modal-actions {
   border-top: 1px solid var(--line);
   justify-content: flex-end;
+}
+
+.modal-form {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 14px 16px 0;
+}
+
+.modal-form label {
+  color: var(--muted);
+  display: grid;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 5px;
+}
+
+.modal-form input,
+.modal-form select {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  min-height: 38px;
+  padding: 7px 9px;
+  width: 100%;
+}
+
+.modal-form .wide-field,
+.modal-form .form-actions {
+  grid-column: 1 / -1;
+}
+
+.modal-form .form-actions {
+  margin: 2px -16px 0;
 }
 
 .icon-button {
