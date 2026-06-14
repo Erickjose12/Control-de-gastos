@@ -398,6 +398,22 @@ td.money {
   white-space: nowrap;
 }
 
+.amount-income {
+  color: var(--green);
+}
+
+.amount-expense {
+  color: var(--red);
+}
+
+.amount-saving {
+  color: var(--amber);
+}
+
+.amount-transfer {
+  color: var(--blue);
+}
+
 .movements-table th:last-child,
 .movements-table td:last-child {
   padding-left: 12px;

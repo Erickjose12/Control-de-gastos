@@ -46,6 +46,16 @@ function shortDescription(value) {
   return String(value ?? "").slice(0, 75).trimEnd();
 }
 
+function amountClassForType(type) {
+  return {
+    Ingreso: "amount-income",
+    Gasto: "amount-expense",
+    Ahorro: "amount-saving",
+    "Venta USD": "amount-income",
+    Transferencia: "amount-transfer",
+  }[type] || "";
+}
+
 async function load() {
   state.meta = await api("/api/meta");
   $("accountSelect").innerHTML = optionList(state.meta.accounts, "GYT - Cuenta ahorro sueldo");
@@ -126,7 +136,7 @@ function renderDashboard() {
               <td>${escapeHtml(tx.category)}</td>
               <td>${escapeHtml(tx.account)}</td>
               <td class="description">${escapeHtml(tx.description)}</td>
-              <td class="money">${fmtMoney.format(tx.amount)}</td>
+              <td class="money ${amountClassForType(tx.type)}">${fmtMoney.format(tx.amount)}</td>
               <td class="actions-cell">
                 <button class="table-action success-text" type="button" data-action="view">Ver</button>
                 <button class="table-action" type="button" data-action="edit">Editar</button>
@@ -161,7 +171,7 @@ function renderImports() {
                   ${optionList(categories, row.suggested_category)}
                 </select>
               </td>
-              <td class="money">${fmtMoney.format(row.amount)}</td>
+              <td class="money ${amountClassForType(row.suggested_type)}">${fmtMoney.format(row.amount)}</td>
               <td>
                 <select data-field="action">
                   ${optionList(["Pendiente", "Pasar a Ingresos", "Pasar a Gastos", "Registrar como Ahorro", "Registrar venta USD", "Registrar transferencia", "Ignorar / transferencia", "Registrado"], row.action)}
@@ -316,6 +326,11 @@ $("importsBody").addEventListener("change", async (event) => {
   if (!select) return;
   const tr = select.closest("tr[data-id]");
   await updateImport(tr.dataset.id, select.dataset.field, select.value);
+  if (select.dataset.field === "suggested_type") {
+    const amountCell = tr.querySelector(".money");
+    amountCell.classList.remove("amount-income", "amount-expense", "amount-saving", "amount-transfer");
+    amountCell.classList.add(amountClassForType(select.value));
+  }
 });
 
 $("commitBtn").addEventListener("click", async () => {
