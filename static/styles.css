@@ -382,8 +382,9 @@ td.money {
 
 .movements-table th:last-child,
 .movements-table td:last-child {
-  padding-right: 18px;
-  text-align: right;
+  padding-left: 18px;
+  padding-right: 12px;
+  text-align: left;
 }
 
 td.description {
