@@ -42,6 +42,10 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
+function shortDescription(value) {
+  return String(value ?? "").slice(0, 75).trimEnd();
+}
+
 async function load() {
   state.meta = await api("/api/meta");
   $("accountSelect").innerHTML = optionList(state.meta.accounts, "GYT - Cuenta ahorro sueldo");
@@ -93,14 +97,18 @@ function renderDashboard() {
           .join("");
 
   $("accountSummary").innerHTML =
-    data.byAccount.length === 0
+    data.transactions.length === 0
       ? `<p class="empty">Sin movimientos por cuenta en este mes.</p>`
-      : data.byAccount
-          .map(([account, amount]) => {
+      : data.transactions
+          .map((tx) => {
+            const amount = tx.type === "Gasto" ? -tx.amount : tx.amount;
             const tone = amount >= 0 ? "positive" : "negative";
             return `
               <div class="account-row">
-                <span>${escapeHtml(account)}</span>
+                <span>
+                  ${escapeHtml(shortDescription(tx.description))}
+                  <small>${escapeHtml(tx.account)}</small>
+                </span>
                 <strong class="${tone}">${fmtMoney.format(amount)}</strong>
               </div>`;
           })

@@ -503,6 +503,14 @@ td select {
   font-weight: 700;
 }
 
+.account-row small {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
 .account-row strong {
   font-size: 14px;
   white-space: nowrap;

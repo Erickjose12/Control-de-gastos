@@ -556,7 +556,7 @@ class App(BaseHTTPRequestHandler):
         tx_type = body.get("type", "Gasto")
         account = body.get("account", "Otro")
         category = body.get("category") or default_category_for_type(tx_type, account)
-        description = body.get("description", "").strip() or "Movimiento manual"
+        description = (body.get("description", "").strip() or "Movimiento manual")[:75]
         amount = float(body.get("amount") or 0)
         date = normalize_date(body.get("date", datetime.now().strftime("%Y-%m-%d")))
         if amount <= 0:
@@ -572,6 +572,7 @@ class App(BaseHTTPRequestHandler):
                 details.append(f"TC {exchange_rate}")
             if details and "(" not in description:
                 description = f"{description} ({', '.join(details)})"
+        description = description[:75]
         with db_connection() as conn:
             cursor = conn.execute(
                 """
@@ -590,7 +591,7 @@ class App(BaseHTTPRequestHandler):
         tx_type = body.get("type", "Gasto")
         account = body.get("account", "Otro")
         category = body.get("category") or default_category_for_type(tx_type, account)
-        description = body.get("description", "").strip() or "Movimiento manual"
+        description = (body.get("description", "").strip() or "Movimiento manual")[:75]
         amount = float(body.get("amount") or 0)
         date = normalize_date(body.get("date", datetime.now().strftime("%Y-%m-%d")))
         if amount <= 0:
@@ -606,6 +607,7 @@ class App(BaseHTTPRequestHandler):
                 details.append(f"TC {exchange_rate}")
             if details:
                 description = f"{description} ({', '.join(details)})"
+        description = description[:75]
         now = datetime.now().isoformat(timespec="seconds")
         with db_connection() as conn:
             conn.execute(
