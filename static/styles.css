@@ -391,6 +391,10 @@ td.money {
   text-align: left;
 }
 
+.movements-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
 .actions-cell {
   align-items: center;
   display: flex;
