@@ -148,7 +148,6 @@ function renderDashboard() {
 }
 
 function renderImports() {
-  const categories = state.meta.categories;
   $("importsBody").innerHTML =
     state.imports.length === 0
       ? `<tr><td class="empty" colspan="6">No hay movimientos importados pendientes.</td></tr>`
@@ -157,20 +156,10 @@ function renderImports() {
             (row) => `
             <tr data-id="${row.id}">
               <td>${escapeHtml(row.date)}</td>
-              <td>
-                <select data-field="account">${optionList(state.meta.accounts, row.account)}</select>
-              </td>
+              <td>${escapeHtml(row.account)}</td>
               <td class="description">${escapeHtml(row.description)}</td>
-              <td>
-                <select data-field="suggested_type">
-                  ${optionList(state.meta.transactionTypes, row.suggested_type)}
-                </select>
-              </td>
-              <td>
-                <select data-field="suggested_category">
-                  ${optionList(categories, row.suggested_category)}
-                </select>
-              </td>
+              <td>${escapeHtml(row.suggested_type)}</td>
+              <td>${escapeHtml(row.suggested_category)}</td>
               <td class="money ${amountClassForType(row.suggested_type)}">${fmtMoney.format(row.amount)}</td>
             </tr>`,
           )
@@ -289,16 +278,6 @@ async function showEditTransaction(transactionId) {
   openModal("editTransactionModal");
 }
 
-async function updateImport(id, field, value) {
-  await api("/api/imports/update", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id, [field]: value }),
-  });
-  const row = state.imports.find((item) => item.id === Number(id));
-  if (row) row[field] = value;
-}
-
 $("importForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
@@ -313,18 +292,6 @@ $("importForm").addEventListener("submit", async (event) => {
   } catch (error) {
     $("importStatus").textContent = "No se pudo importar el archivo.";
     console.error(error);
-  }
-});
-
-$("importsBody").addEventListener("change", async (event) => {
-  const select = event.target.closest("select[data-field]");
-  if (!select) return;
-  const tr = select.closest("tr[data-id]");
-  await updateImport(tr.dataset.id, select.dataset.field, select.value);
-  if (select.dataset.field === "suggested_type") {
-    const amountCell = tr.querySelector(".money");
-    amountCell.classList.remove("amount-income", "amount-expense", "amount-saving", "amount-transfer");
-    amountCell.classList.add(amountClassForType(select.value));
   }
 });
 
