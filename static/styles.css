@@ -557,6 +557,12 @@ td select {
   justify-content: flex-end;
 }
 
+.view-actions {
+  border-top: 0;
+  justify-content: center;
+  padding-top: 6px;
+}
+
 .modal-form {
   display: grid;
   gap: 12px;
@@ -613,6 +619,11 @@ td select {
   padding: 10px 0;
 }
 
+#viewTransactionModal .detail-label,
+#viewTransactionModal .detail-value {
+  border-bottom: 0;
+}
+
 .detail-label {
   color: var(--muted);
   font-weight: 700;
@@ -620,6 +631,12 @@ td select {
 
 .detail-value {
   overflow-wrap: anywhere;
+}
+
+.danger-soft {
+  background: #fff2f0;
+  border-color: #f2c4bf;
+  color: var(--red);
 }
 
 .confirm-text {
