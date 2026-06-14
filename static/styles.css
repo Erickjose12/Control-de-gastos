@@ -321,7 +321,36 @@ input[type="file"] {
 table {
   border-collapse: collapse;
   min-width: 980px;
+  table-layout: fixed;
   width: 100%;
+}
+
+.compact table {
+  min-width: 1100px;
+}
+
+.col-date {
+  width: 115px;
+}
+
+.col-type {
+  width: 150px;
+}
+
+.col-category {
+  width: 150px;
+}
+
+.col-account {
+  width: 300px;
+}
+
+.col-description {
+  width: auto;
+}
+
+.col-money {
+  width: 140px;
 }
 
 th,
@@ -352,7 +381,7 @@ td.money {
 }
 
 td.description {
-  min-width: 280px;
+  overflow-wrap: anywhere;
 }
 
 td select {
