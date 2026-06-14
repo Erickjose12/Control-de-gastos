@@ -406,8 +406,9 @@ td.money {
   white-space: nowrap;
 }
 
-.review-table th:last-child {
-  text-align: right;
+.review-table th:last-child,
+.review-table td.money {
+  text-align: left;
 }
 
 .amount-income {
