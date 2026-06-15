@@ -258,12 +258,6 @@ function renderWedding() {
   $("weddingDashProgress").textContent = progressText;
   $("weddingDashBar").style.width = `${progress * 100}%`;
 
-  $("weddingBudgetKpi").textContent = fmtMoney.format(data.budget || 0);
-  $("weddingSpentKpi").textContent = fmtMoney.format(data.spent || 0);
-  $("weddingPaidKpi").textContent = fmtMoney.format(data.paid || 0);
-  $("weddingAvailableKpi").textContent = fmtMoney.format(data.available || 0);
-  $("weddingProgressText").textContent = progressText;
-  $("weddingProgressBar").style.width = `${progress * 100}%`;
   $("weddingBudgetInput").value = data.budget || 0;
   $("weddingCategory").innerHTML = optionList(data.categories || [], "Lugar");
 
