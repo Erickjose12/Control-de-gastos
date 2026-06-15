@@ -182,26 +182,31 @@
           <section class="panel">
             <div class="panel-head">
               <h2>Movimientos del mes</h2>
+              <button id="deleteSelectedBtn" class="danger" type="button" disabled>Eliminar seleccionados</button>
             </div>
             <div class="table-wrap compact">
               <table class="movements-table">
                 <colgroup>
+                  <col class="col-select" />
                   <col class="col-date" />
                   <col class="col-type" />
                   <col class="col-category" />
                   <col class="col-account" />
                   <col class="col-description" />
                   <col class="col-money" />
+                  <col class="col-origin" />
                   <col class="col-actions" />
                 </colgroup>
                 <thead>
                   <tr>
+                    <th><input id="selectAllTransactions" type="checkbox" aria-label="Seleccionar todos" /></th>
                     <th>Fecha</th>
                     <th>Tipo</th>
                     <th>Categoria</th>
                     <th>Cuenta</th>
                     <th>Descripcion</th>
                     <th>Monto</th>
+                    <th>Origen</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>

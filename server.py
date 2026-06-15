@@ -456,6 +456,9 @@ class App(BaseHTTPRequestHandler):
         elif parsed.path == "/api/transactions":
             body = self.read_json()
             self.create_transaction(body)
+        elif parsed.path == "/api/transactions/delete":
+            body = self.read_json()
+            self.delete_transactions(body.get("ids", []))
         else:
             self.send_error(404)
 
@@ -566,6 +569,16 @@ class App(BaseHTTPRequestHandler):
             self.send_error(404, "Movimiento no encontrado")
         else:
             self.send_json({"ok": True})
+
+    def delete_transactions(self, transaction_ids: list) -> None:
+        ids = [int(item) for item in transaction_ids if str(item).isdigit()]
+        if not ids:
+            self.send_error(400, "No hay movimientos seleccionados")
+            return
+        placeholders = ",".join("?" for _ in ids)
+        with db_connection() as conn:
+            cursor = conn.execute(f"DELETE FROM transactions WHERE id IN ({placeholders})", ids)
+        self.send_json({"ok": True, "count": cursor.rowcount})
 
     def update_transaction(self, transaction_id: int, body: dict) -> None:
         tx_type = body.get("type", "Gasto")

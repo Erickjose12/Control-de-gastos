@@ -12,6 +12,7 @@ const state = {
   dashboard: null,
   exchangeRate: null,
   deleteTransactionId: null,
+  deleteTransactionIds: [],
 };
 
 const fmtMoney = new Intl.NumberFormat("es-GT", {
@@ -129,17 +130,21 @@ function renderDashboard() {
 
   $("transactionsBody").innerHTML =
     data.transactions.length === 0
-      ? `<tr><td class="empty" colspan="7">Sin movimientos registrados.</td></tr>`
+      ? `<tr><td class="empty" colspan="9">Sin movimientos registrados.</td></tr>`
       : data.transactions
           .map(
             (tx) => `
             <tr data-transaction-id="${tx.id}">
+              <td class="select-cell">
+                <input class="transaction-check" type="checkbox" value="${tx.id}" aria-label="Seleccionar movimiento" />
+              </td>
               <td>${escapeHtml(tx.date)}</td>
               <td>${escapeHtml(tx.type)}</td>
               <td>${escapeHtml(tx.category)}</td>
               <td>${escapeHtml(tx.account)}</td>
               <td class="description">${escapeHtml(tx.description)}</td>
               <td class="money ${amountClassForType(tx.type)}">${fmtMoney.format(tx.amount)}</td>
+              <td>${tx.source_import_id ? "Importado" : "Manual"}</td>
               <td class="actions-cell">
                 <button class="table-action success-text" type="button" data-action="view">Ver</button>
                 <button class="table-action" type="button" data-action="edit">Editar</button>
@@ -148,6 +153,7 @@ function renderDashboard() {
             </tr>`,
           )
           .join("");
+  updateBulkDeleteState();
 }
 
 function renderImports() {
@@ -239,6 +245,7 @@ function closeModals() {
     modal.hidden = true;
   });
   state.deleteTransactionId = null;
+  state.deleteTransactionIds = [];
 }
 
 function detailRow(label, value) {
@@ -265,7 +272,30 @@ async function showTransactionDetail(transactionId) {
 async function askDeleteTransaction(transactionId) {
   const tx = await api(`/api/transactions/${transactionId}`);
   state.deleteTransactionId = transactionId;
+  state.deleteTransactionIds = [Number(transactionId)];
   $("deleteTransactionText").textContent = `Vas a eliminar "${tx.description}" por ${fmtMoney.format(tx.amount)}. Esta accion no se puede deshacer.`;
+  openModal("deleteTransactionModal");
+}
+
+function selectedTransactionIds() {
+  return [...document.querySelectorAll(".transaction-check:checked")].map((input) => Number(input.value));
+}
+
+function updateBulkDeleteState() {
+  const ids = selectedTransactionIds();
+  const hasRows = document.querySelectorAll(".transaction-check").length > 0;
+  const allSelected = hasRows && ids.length === document.querySelectorAll(".transaction-check").length;
+  $("deleteSelectedBtn").disabled = ids.length === 0;
+  $("selectAllTransactions").checked = allSelected;
+  $("selectAllTransactions").indeterminate = ids.length > 0 && !allSelected;
+}
+
+function askDeleteSelectedTransactions() {
+  const ids = selectedTransactionIds();
+  if (ids.length === 0) return;
+  state.deleteTransactionId = null;
+  state.deleteTransactionIds = ids;
+  $("deleteTransactionText").textContent = `Vas a eliminar ${ids.length} movimientos seleccionados. Esta accion no se puede deshacer.`;
   openModal("deleteTransactionModal");
 }
 
@@ -359,6 +389,20 @@ $("transactionsBody").addEventListener("click", async (event) => {
   }
 });
 
+$("transactionsBody").addEventListener("change", (event) => {
+  if (!event.target.closest(".transaction-check")) return;
+  updateBulkDeleteState();
+});
+
+$("selectAllTransactions").addEventListener("change", (event) => {
+  document.querySelectorAll(".transaction-check").forEach((input) => {
+    input.checked = event.currentTarget.checked;
+  });
+  updateBulkDeleteState();
+});
+
+$("deleteSelectedBtn").addEventListener("click", askDeleteSelectedTransactions);
+
 $("editTransactionForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
@@ -375,8 +419,19 @@ $("editTransactionForm").addEventListener("submit", async (event) => {
 });
 
 $("confirmDeleteBtn").addEventListener("click", async () => {
-  if (!state.deleteTransactionId) return;
-  await api(`/api/transactions/${state.deleteTransactionId}`, { method: "DELETE" });
+  if (state.deleteTransactionIds.length > 1) {
+    await api("/api/transactions/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: state.deleteTransactionIds }),
+    });
+  } else if (state.deleteTransactionIds.length === 1) {
+    await api(`/api/transactions/${state.deleteTransactionIds[0]}`, { method: "DELETE" });
+  } else if (state.deleteTransactionId) {
+    await api(`/api/transactions/${state.deleteTransactionId}`, { method: "DELETE" });
+  } else {
+    return;
+  }
   closeModals();
   await loadDashboard();
 });
