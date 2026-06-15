@@ -111,17 +111,17 @@ function renderDashboard() {
           .join("");
 
   $("accountSummary").innerHTML =
-    data.transactions.length === 0
+    data.byAccount.length === 0
       ? `<p class="empty">Sin movimientos por cuenta en este mes.</p>`
-      : data.transactions
-          .map((tx) => {
-            const amount = tx.type === "Gasto" ? -tx.amount : tx.amount;
+      : data.byAccount
+          .map(([account, amount]) => {
             const tone = amount >= 0 ? "positive" : "negative";
+            const description = amount >= 0 ? "Entrada neta del mes" : "Salida neta del mes";
             return `
               <div class="account-row">
                 <span>
-                  ${escapeHtml(shortDescription(tx.description))}
-                  <small>${escapeHtml(tx.account)}</small>
+                  ${escapeHtml(account)}
+                  <small>${description}</small>
                 </span>
                 <strong class="${tone}">${fmtMoney.format(amount)}</strong>
               </div>`;
