@@ -243,6 +243,35 @@ input[type="file"] {
   margin-top: 4px;
 }
 
+.table-tools {
+  border-bottom: 1px solid var(--line);
+  padding: 10px 14px;
+}
+
+.table-tools label {
+  color: var(--muted);
+  display: grid;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 5px;
+  max-width: 740px;
+}
+
+.table-tools input {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  min-height: 36px;
+  padding: 7px 10px;
+  width: 100%;
+}
+
+.table-tools input:focus {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+  outline: 0;
+}
+
 .import-form {
   display: grid;
   gap: 12px;

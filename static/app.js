@@ -54,6 +54,19 @@ function shortDescription(value) {
   return String(value ?? "").slice(0, 75).trimEnd();
 }
 
+function normalizeSearch(value) {
+  return String(value ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+function matchesSearch(values, query) {
+  if (!query) return true;
+  return normalizeSearch(values.join(" ")).includes(query);
+}
+
 function amountClassForType(type) {
   return {
     Ingreso: "amount-income",
@@ -135,10 +148,28 @@ function renderDashboard() {
           })
           .join("");
 
+  const transactionQuery = normalizeSearch($("transactionsSearch").value);
+  const filteredTransactions = data.transactions.filter((tx) =>
+    matchesSearch(
+      [
+        tx.date,
+        tx.type,
+        tx.category,
+        tx.account,
+        tx.description,
+        fmtMoney.format(tx.amount),
+        tx.source_import_id ? "Importado" : "Manual",
+      ],
+      transactionQuery,
+    ),
+  );
+
   $("transactionsBody").innerHTML =
     data.transactions.length === 0
       ? `<tr><td class="empty" colspan="9">Sin movimientos registrados.</td></tr>`
-      : data.transactions
+      : filteredTransactions.length === 0
+        ? `<tr><td class="empty" colspan="9">No hay movimientos que coincidan con la busqueda.</td></tr>`
+        : filteredTransactions
           .map(
             (tx) => `
             <tr data-transaction-id="${tx.id}">
@@ -164,10 +195,27 @@ function renderDashboard() {
 }
 
 function renderImports() {
+  const importQuery = normalizeSearch($("importsSearch").value);
+  const filteredImports = state.imports.filter((row) =>
+    matchesSearch(
+      [
+        row.date,
+        row.account,
+        row.description,
+        row.suggested_type,
+        row.suggested_category,
+        fmtMoney.format(row.amount),
+      ],
+      importQuery,
+    ),
+  );
+
   $("importsBody").innerHTML =
     state.imports.length === 0
       ? `<tr><td class="empty" colspan="6">No hay movimientos importados pendientes.</td></tr>`
-      : state.imports
+      : filteredImports.length === 0
+        ? `<tr><td class="empty" colspan="6">No hay movimientos importados que coincidan con la busqueda.</td></tr>`
+        : filteredImports
           .map(
             (row) => `
             <tr data-id="${row.id}">
@@ -412,6 +460,9 @@ $("selectAllTransactions").addEventListener("change", (event) => {
 });
 
 $("deleteSelectedBtn").addEventListener("click", askDeleteSelectedTransactions);
+
+$("importsSearch").addEventListener("input", renderImports);
+$("transactionsSearch").addEventListener("input", renderDashboard);
 
 $("editTransactionForm").addEventListener("submit", async (event) => {
   event.preventDefault();
