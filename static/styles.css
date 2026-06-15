@@ -502,6 +502,38 @@ table {
   width: 230px;
 }
 
+.wedding-table {
+  min-width: 1320px;
+}
+
+.wedding-col-date {
+  width: 140px;
+}
+
+.wedding-col-concept {
+  width: 230px;
+}
+
+.wedding-col-category {
+  width: 160px;
+}
+
+.wedding-col-vendor {
+  width: 220px;
+}
+
+.wedding-col-money {
+  width: 145px;
+}
+
+.wedding-col-status {
+  width: 145px;
+}
+
+.wedding-col-actions {
+  width: 320px;
+}
+
 th,
 td {
   border-bottom: 1px solid var(--line);
@@ -577,6 +609,31 @@ td.money {
 
 .movements-table tbody tr:last-child td {
   border-bottom: 0;
+}
+
+.wedding-table th:nth-child(5),
+.wedding-table th:nth-child(6),
+.wedding-table th:nth-child(7),
+.wedding-table td.money {
+  padding-left: 10px;
+  padding-right: 12px;
+  text-align: right;
+}
+
+.wedding-table th:nth-child(8),
+.wedding-table td:nth-child(8) {
+  text-align: left;
+}
+
+.wedding-table th:nth-child(9),
+.wedding-table td.actions-cell {
+  padding-left: 12px;
+  padding-right: 12px;
+  text-align: left;
+}
+
+.wedding-table .actions-cell {
+  min-width: 300px;
 }
 
 .actions-cell {
