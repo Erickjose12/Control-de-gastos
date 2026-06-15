@@ -431,6 +431,12 @@ td.money {
   text-align: left;
 }
 
+.movements-table th:nth-child(7),
+.movements-table td.money {
+  padding-left: 12px;
+  text-align: left;
+}
+
 .amount-income {
   color: var(--green);
 }
