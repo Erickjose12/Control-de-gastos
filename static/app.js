@@ -58,6 +58,9 @@ function amountClassForType(type) {
 
 async function load() {
   state.meta = await api("/api/meta");
+  if (state.meta.latestMonth) {
+    $("monthInput").value = state.meta.latestMonth;
+  }
   $("accountSelect").innerHTML = optionList(state.meta.accounts, "GYT - Cuenta ahorro sueldo");
   $("manualAccount").innerHTML = optionList(state.meta.accounts, "Banrural - Cuenta ahorro");
   $("manualForm").elements.date.value = new Date().toISOString().slice(0, 10);

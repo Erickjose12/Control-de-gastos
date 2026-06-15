@@ -403,6 +403,14 @@ def rowdict(row: sqlite3.Row) -> dict:
     return dict(row)
 
 
+def latest_transaction_month() -> str | None:
+    with db_connection() as conn:
+        row = conn.execute(
+            "SELECT MAX(substr(date,1,7)) AS month FROM transactions"
+        ).fetchone()
+    return row["month"] if row and row["month"] else None
+
+
 def fetch_usd_gtq_rate() -> dict:
     try:
         with urlopen(EXCHANGE_RATE_URL, timeout=8) as response:
@@ -483,6 +491,7 @@ class App(BaseHTTPRequestHandler):
                     "transferCategories": TRANSFER_CATEGORIES,
                     "categories": CATEGORIES,
                     "transactionTypes": TRANSACTION_TYPES,
+                    "latestMonth": latest_transaction_month(),
                 }
             )
         elif path == "/api/imports":
