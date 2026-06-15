@@ -273,6 +273,8 @@ function renderWedding() {
         fmtMoney.format(expense.amount),
         fmtMoney.format(expense.paid_amount),
         fmtMoney.format(expense.pending_amount),
+        expense.attachment_name || "",
+        expense.has_attachment ? "con archivo documento evidencia" : "sin archivo",
       ],
       query,
     ),
@@ -296,6 +298,11 @@ function renderWedding() {
               <td class="money">${fmtMoney.format(expense.pending_amount)}</td>
               <td><span class="pill ${statusClass(expense.status)}">${escapeHtml(expense.status)}</span></td>
               <td class="actions-cell">
+                ${
+                  expense.has_attachment
+                    ? `<a class="table-action success-text" href="/api/wedding/expenses/${expense.id}/attachment" target="_blank" rel="noopener">Ver archivo</a>`
+                    : `<button class="table-action" type="button" disabled>Sin archivo</button>`
+                }
                 <button class="table-action" type="button" data-wedding-action="payment">Abonar</button>
                 <button class="table-action danger-text" type="button" data-wedding-action="delete">Eliminar</button>
               </td>
@@ -573,11 +580,9 @@ $("weddingBudgetForm").addEventListener("submit", async (event) => {
 $("weddingExpenseForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
-  const data = Object.fromEntries(new FormData(form).entries());
   state.wedding = await api("/api/wedding/expenses", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+    body: new FormData(form),
   });
   form.reset();
   setWeddingDefaultDates();

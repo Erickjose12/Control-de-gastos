@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import mimetypes
 import re
 import sqlite3
 import tempfile
@@ -23,6 +24,7 @@ ROOT = Path(__file__).parent
 STATIC = ROOT / "static"
 DATA = ROOT / "data"
 DB = DATA / "finanzas.db"
+WEDDING_FILES = DATA / "wedding_files"
 EXCHANGE_RATE_URL = "https://open.er-api.com/v6/latest/USD"
 LEGACY_WEDDING_DB = ROOT.parent / "Control-de-gastos-de-boda" / "data" / "boda.db"
 
@@ -119,6 +121,7 @@ def db_connection():
 
 def init_db() -> None:
     DATA.mkdir(parents=True, exist_ok=True)
+    WEDDING_FILES.mkdir(parents=True, exist_ok=True)
     with db_connection() as conn:
         conn.executescript(
             """
@@ -183,8 +186,17 @@ def init_db() -> None:
         conn.execute(
             "INSERT OR IGNORE INTO wedding_settings (key, value) VALUES ('budget', '60000')"
         )
+        ensure_column(conn, "wedding_expenses", "attachment_name", "TEXT")
+        ensure_column(conn, "wedding_expenses", "attachment_path", "TEXT")
+        ensure_column(conn, "wedding_expenses", "attachment_mime", "TEXT")
         migrate_existing_data(conn)
         migrate_wedding_data(conn)
+
+
+def ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+    columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column not in columns:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 def migrate_existing_data(conn: sqlite3.Connection) -> None:
@@ -592,6 +604,8 @@ def serialize_wedding_expense(row: sqlite3.Row) -> dict:
         "paid_amount": paid_amount,
         "pending_amount": pending_amount,
         "status": status,
+        "attachment_name": row["attachment_name"],
+        "has_attachment": bool(row["attachment_path"]),
     }
 
 
@@ -609,6 +623,9 @@ def build_wedding_state() -> dict:
               e.category,
               e.vendor,
               e.amount,
+              e.attachment_name,
+              e.attachment_path,
+              e.attachment_mime,
               COALESCE(SUM(p.amount), 0) AS paid_amount
             FROM wedding_expenses e
             LEFT JOIN wedding_payments p ON p.expense_id = e.id
@@ -631,6 +648,38 @@ def build_wedding_state() -> dict:
         "categories": WEDDING_CATEGORIES,
         "expenses": expenses,
     }
+
+
+def safe_filename(value: str) -> str:
+    name = Path(value).name.strip() or "archivo"
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", name)[:120]
+
+
+def save_wedding_attachment(expense_id: int, file: dict) -> tuple[str, Path, str]:
+    original_name = safe_filename(file.get("filename", "archivo"))
+    suffix = Path(original_name).suffix.lower()
+    allowed = {".pdf", ".png", ".jpg", ".jpeg", ".webp"}
+    if suffix not in allowed:
+        raise ValueError("Solo se permiten archivos PDF o imagenes.")
+    mime = mimetypes.guess_type(original_name)[0] or "application/octet-stream"
+    if suffix == ".pdf":
+        mime = "application/pdf"
+    elif not mime.startswith("image/"):
+        mime = "image/jpeg"
+    file_path = WEDDING_FILES / f"{expense_id}_{original_name}"
+    file_path.write_bytes(file.get("data", b""))
+    return original_name, file_path, mime
+
+
+def delete_wedding_attachment(relative_path: str | None) -> None:
+    if not relative_path:
+        return
+    file_path = (DATA / relative_path).resolve()
+    try:
+        file_path.relative_to(WEDDING_FILES.resolve())
+    except ValueError:
+        return
+    file_path.unlink(missing_ok=True)
 
 
 class App(BaseHTTPRequestHandler):
@@ -659,8 +708,8 @@ class App(BaseHTTPRequestHandler):
             body = self.read_json()
             self.delete_transactions(body.get("ids", []))
         elif parsed.path == "/api/wedding/expenses":
-            body = self.read_json()
-            self.create_wedding_expense(body)
+            body, file = self.read_wedding_expense_payload()
+            self.create_wedding_expense(body, file)
         elif parsed.path == "/api/wedding/sample-data":
             self.load_wedding_sample_data()
         elif parsed.path.startswith("/api/wedding/expenses/") and parsed.path.endswith("/payments"):
@@ -740,6 +789,9 @@ class App(BaseHTTPRequestHandler):
             self.send_json(fetch_usd_gtq_rate())
         elif path == "/api/wedding/state":
             self.send_json(build_wedding_state())
+        elif path.startswith("/api/wedding/expenses/") and path.endswith("/attachment"):
+            expense_id = int(path.split("/")[4])
+            self.serve_wedding_attachment(expense_id)
         else:
             self.send_error(404)
 
@@ -767,6 +819,16 @@ class App(BaseHTTPRequestHandler):
             rows = parse_csv_upload(data, name, bank, product, account)
         count = save_imports(rows)
         self.send_json({"ok": True, "count": count})
+
+    def read_wedding_expense_payload(self) -> tuple[dict, dict | None]:
+        content_type = self.headers.get("Content-Type", "")
+        if content_type.startswith("multipart/form-data"):
+            fields, files = parse_multipart(self)
+            file = files.get("attachment")
+            if file and not file.get("filename"):
+                file = None
+            return fields, file
+        return self.read_json(), None
 
     def update_import(self, body: dict) -> None:
         allowed = {"suggested_type", "suggested_category", "account", "action", "notes"}
@@ -910,7 +972,7 @@ class App(BaseHTTPRequestHandler):
             )
         self.send_json(build_wedding_state())
 
-    def create_wedding_expense(self, body: dict) -> None:
+    def create_wedding_expense(self, body: dict, file: dict | None = None) -> None:
         amount = float(body.get("amount") or 0)
         initial_payment = float(body.get("initialPayment") or 0)
         if amount <= 0:
@@ -931,6 +993,21 @@ class App(BaseHTTPRequestHandler):
                 """,
                 (date, description, category, vendor, amount, now),
             )
+            expense_id = cursor.lastrowid
+            if file:
+                try:
+                    filename, file_path, mime = save_wedding_attachment(expense_id, file)
+                except ValueError as exc:
+                    self.send_error(400, str(exc))
+                    return
+                conn.execute(
+                    """
+                    UPDATE wedding_expenses
+                    SET attachment_name=?, attachment_path=?, attachment_mime=?
+                    WHERE id=?
+                    """,
+                    (filename, str(file_path.relative_to(DATA)), mime, expense_id),
+                )
             if initial_payment > 0:
                 conn.execute(
                     """
@@ -939,7 +1016,7 @@ class App(BaseHTTPRequestHandler):
                     VALUES (?, ?, ?, ?, NULL, ?)
                     """,
                     (
-                        cursor.lastrowid,
+                        expense_id,
                         payment_date,
                         min(initial_payment, amount),
                         "Abono inicial",
@@ -973,11 +1050,16 @@ class App(BaseHTTPRequestHandler):
 
     def delete_wedding_expense(self, expense_id: int) -> None:
         with db_connection() as conn:
+            row = conn.execute(
+                "SELECT attachment_path FROM wedding_expenses WHERE id=?",
+                (expense_id,),
+            ).fetchone()
             conn.execute("DELETE FROM wedding_payments WHERE expense_id=?", (expense_id,))
             cursor = conn.execute("DELETE FROM wedding_expenses WHERE id=?", (expense_id,))
         if cursor.rowcount == 0:
             self.send_error(404, "Gasto de boda no encontrado")
         else:
+            delete_wedding_attachment(row["attachment_path"] if row else None)
             self.send_json({"ok": True})
 
     def load_wedding_sample_data(self) -> None:
@@ -1025,6 +1107,31 @@ class App(BaseHTTPRequestHandler):
                         ),
                     )
         self.send_json(build_wedding_state(), status=201)
+
+    def serve_wedding_attachment(self, expense_id: int) -> None:
+        with db_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT attachment_name, attachment_path, attachment_mime
+                FROM wedding_expenses
+                WHERE id=?
+                """,
+                (expense_id,),
+            ).fetchone()
+        if not row or not row["attachment_path"]:
+            self.send_error(404, "Archivo no encontrado")
+            return
+        file_path = DATA / row["attachment_path"]
+        if not file_path.exists() or not file_path.is_file():
+            self.send_error(404, "Archivo no encontrado")
+            return
+        content_type = row["attachment_mime"] or "application/octet-stream"
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Disposition", f'inline; filename="{row["attachment_name"]}"')
+        self.send_header("Content-Length", str(file_path.stat().st_size))
+        self.end_headers()
+        self.wfile.write(file_path.read_bytes())
 
     def serve_static(self, path: str) -> None:
         file_path = STATIC / ("index.html" if path in ("", "/") else path.lstrip("/"))
