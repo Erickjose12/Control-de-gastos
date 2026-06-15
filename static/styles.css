@@ -317,7 +317,16 @@ input[type="file"] {
 .import-form input,
 .import-form select,
 .manual-form input,
-.manual-form select {
+.manual-form select,
+.budget-form input,
+.budget-form select,
+.wedding-form input,
+.wedding-form select {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  min-height: 38px;
+  padding: 7px 9px;
   width: 100%;
   min-width: 0;
 }
@@ -364,6 +373,11 @@ input[type="file"] {
 
 .budget-form label {
   grid-column: span 2;
+}
+
+.budget-form .ghost,
+.budget-form .primary {
+  align-self: end;
 }
 
 .wedding-form .primary {
