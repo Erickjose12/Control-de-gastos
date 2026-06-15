@@ -584,37 +584,6 @@ $("weddingExpenseForm").addEventListener("submit", async (event) => {
   renderWedding();
 });
 
-$("weddingSampleBtn").addEventListener("click", async () => {
-  state.wedding = await api("/api/wedding/sample-data", { method: "POST" });
-  renderWedding();
-});
-
-$("weddingExportBtn").addEventListener("click", () => {
-  const rows = [
-    ["Fecha", "Concepto", "Categoria", "Proveedor", "Monto total", "Abonado", "Pendiente", "Estado"],
-    ...state.wedding.expenses.map((expense) => [
-      expense.date,
-      expense.description,
-      expense.category,
-      expense.vendor,
-      expense.amount,
-      expense.paid_amount,
-      expense.pending_amount,
-      expense.status,
-    ]),
-  ];
-  const csv = rows
-    .map((row) => row.map((cell) => `"${String(cell ?? "").replaceAll('"', '""')}"`).join(","))
-    .join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "gastos-boda.csv";
-  link.click();
-  URL.revokeObjectURL(url);
-});
-
 $("weddingExpensesBody").addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-wedding-action]");
   if (!button) return;
