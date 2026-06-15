@@ -465,21 +465,27 @@ td.money {
 }
 
 .actions-cell {
-  align-items: center;
-  display: flex;
-  gap: 8px;
+  white-space: nowrap;
 }
 
 .table-action {
+  align-items: center;
   background: #eef6ff;
   border: 1px solid #c7dbf5;
   border-radius: 6px;
   color: var(--navy);
   cursor: pointer;
+  display: inline-flex;
   font-size: 12px;
   font-weight: 700;
+  justify-content: center;
+  margin-right: 8px;
   min-height: 30px;
   padding: 5px 9px;
+}
+
+.table-action:last-child {
+  margin-right: 0;
 }
 
 .success-text {
