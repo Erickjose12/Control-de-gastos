@@ -35,6 +35,13 @@ function optionList(values, selected) {
     .join("");
 }
 
+function defaultDateForSelectedMonth() {
+  const selectedMonth = $("monthInput").value;
+  const today = new Date().toISOString().slice(0, 10);
+  if (!selectedMonth) return today;
+  return today.startsWith(selectedMonth) ? today : `${selectedMonth}-01`;
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -64,7 +71,7 @@ async function load() {
   }
   $("accountSelect").innerHTML = optionList(state.meta.accounts, "GYT - Cuenta ahorro sueldo");
   $("manualAccount").innerHTML = optionList(state.meta.accounts, "Banrural - Cuenta ahorro");
-  $("manualForm").elements.date.value = new Date().toISOString().slice(0, 10);
+  $("manualForm").elements.date.value = defaultDateForSelectedMonth();
   updateManualDefaults();
   bindNavigation();
   await refreshAll();
@@ -360,9 +367,12 @@ $("manualForm").addEventListener("submit", async (event) => {
     body: JSON.stringify(data),
   });
   $("importStatus").textContent = "Movimiento manual guardado.";
+  if (data.date) {
+    $("monthInput").value = data.date.slice(0, 7);
+  }
   const currentType = $("manualType").value;
   form.reset();
-  $("manualForm").elements.date.value = new Date().toISOString().slice(0, 10);
+  $("manualForm").elements.date.value = defaultDateForSelectedMonth();
   $("manualType").value = currentType;
   updateManualDefaults();
   await loadDashboard();
@@ -440,7 +450,10 @@ document.querySelectorAll("[data-close-modal]").forEach((element) => {
   element.addEventListener("click", closeModals);
 });
 
-$("monthInput").addEventListener("change", loadDashboard);
+$("monthInput").addEventListener("change", () => {
+  $("manualForm").elements.date.value = defaultDateForSelectedMonth();
+  loadDashboard();
+});
 
 load().catch((error) => {
   console.error(error);
