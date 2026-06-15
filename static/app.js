@@ -10,6 +10,11 @@ const state = {
   },
   imports: [],
   dashboard: null,
+  wedding: {
+    budget: 0,
+    expenses: [],
+    categories: [],
+  },
   exchangeRate: null,
   deleteTransactionId: null,
   deleteTransactionIds: [],
@@ -40,6 +45,12 @@ function defaultDateForSelectedMonth() {
   const today = new Date().toISOString().slice(0, 10);
   if (!selectedMonth) return today;
   return today.startsWith(selectedMonth) ? today : `${selectedMonth}-01`;
+}
+
+function setWeddingDefaultDates() {
+  const today = new Date().toISOString().slice(0, 10);
+  $("weddingExpenseForm").elements.date.value = today;
+  $("weddingExpenseForm").elements.paymentDate.value = today;
 }
 
 function escapeHtml(value) {
@@ -85,13 +96,14 @@ async function load() {
   $("accountSelect").innerHTML = optionList(state.meta.accounts, "GYT - Cuenta ahorro sueldo");
   $("manualAccount").innerHTML = optionList(state.meta.accounts, "Banrural - Cuenta ahorro");
   $("manualForm").elements.date.value = defaultDateForSelectedMonth();
+  setWeddingDefaultDates();
   updateManualDefaults();
   bindNavigation();
   await refreshAll();
 }
 
 async function refreshAll() {
-  await Promise.all([loadImports(), loadDashboard()]);
+  await Promise.all([loadImports(), loadDashboard(), loadWedding()]);
 }
 
 async function loadImports() {
@@ -103,6 +115,11 @@ async function loadDashboard() {
   const month = $("monthInput").value;
   state.dashboard = await api(`/api/dashboard?month=${encodeURIComponent(month)}`);
   renderDashboard();
+}
+
+async function loadWedding() {
+  state.wedding = await api("/api/wedding/state");
+  renderWedding();
 }
 
 function renderDashboard() {
@@ -230,6 +247,83 @@ function renderImports() {
           .join("");
 }
 
+function renderWedding() {
+  const data = state.wedding;
+  const progress = Math.min(data.progress || 0, 1);
+  const progressText = `${Math.round(progress * 100)}%`;
+  $("weddingDashBudget").textContent = fmtMoney.format(data.budget || 0);
+  $("weddingDashSpent").textContent = fmtMoney.format(data.spent || 0);
+  $("weddingDashPaid").textContent = fmtMoney.format(data.paid || 0);
+  $("weddingDashAvailable").textContent = fmtMoney.format(data.available || 0);
+  $("weddingDashProgress").textContent = progressText;
+  $("weddingDashBar").style.width = `${progress * 100}%`;
+
+  $("weddingBudgetKpi").textContent = fmtMoney.format(data.budget || 0);
+  $("weddingSpentKpi").textContent = fmtMoney.format(data.spent || 0);
+  $("weddingPaidKpi").textContent = fmtMoney.format(data.paid || 0);
+  $("weddingAvailableKpi").textContent = fmtMoney.format(data.available || 0);
+  $("weddingProgressText").textContent = progressText;
+  $("weddingProgressBar").style.width = `${progress * 100}%`;
+  $("weddingBudgetInput").value = data.budget || 0;
+  $("weddingCategory").innerHTML = optionList(data.categories || [], "Lugar");
+
+  const query = normalizeSearch($("weddingSearch").value);
+  const expenses = (data.expenses || []).filter((expense) =>
+    matchesSearch(
+      [
+        expense.date,
+        expense.description,
+        expense.category,
+        expense.vendor,
+        expense.status,
+        fmtMoney.format(expense.amount),
+        fmtMoney.format(expense.paid_amount),
+        fmtMoney.format(expense.pending_amount),
+      ],
+      query,
+    ),
+  );
+
+  $("weddingExpensesBody").innerHTML =
+    data.expenses.length === 0
+      ? `<tr><td class="empty" colspan="9">Aun no hay gastos de boda registrados.</td></tr>`
+      : expenses.length === 0
+        ? `<tr><td class="empty" colspan="9">No hay gastos de boda que coincidan con la busqueda.</td></tr>`
+        : expenses
+          .map(
+            (expense) => `
+            <tr data-wedding-expense-id="${expense.id}">
+              <td>${escapeHtml(formatDisplayDate(expense.date))}</td>
+              <td>${escapeHtml(expense.description)}</td>
+              <td>${escapeHtml(expense.category)}</td>
+              <td>${escapeHtml(expense.vendor || "-")}</td>
+              <td class="money">${fmtMoney.format(expense.amount)}</td>
+              <td class="money">${fmtMoney.format(expense.paid_amount)}</td>
+              <td class="money">${fmtMoney.format(expense.pending_amount)}</td>
+              <td><span class="pill ${statusClass(expense.status)}">${escapeHtml(expense.status)}</span></td>
+              <td class="actions-cell">
+                <button class="table-action" type="button" data-wedding-action="payment">Abonar</button>
+                <button class="table-action danger-text" type="button" data-wedding-action="delete">Eliminar</button>
+              </td>
+            </tr>`,
+          )
+          .join("");
+}
+
+function formatDisplayDate(value) {
+  if (!value) return "-";
+  const [year, month, day] = value.split("-");
+  return `${day}/${month}/${year}`;
+}
+
+function statusClass(status) {
+  return {
+    Pagado: "paid",
+    Abonado: "partial",
+    Pendiente: "pending",
+  }[status] || "pending";
+}
+
 function defaultAccountForType(type) {
   if (type === "Ahorro" || type === "Venta USD") return "Banrural - Cuenta ahorro";
   if (type === "Ingreso") return "GYT - Cuenta ahorro sueldo";
@@ -278,16 +372,22 @@ function setActiveView(viewId) {
   document.querySelectorAll(".nav-item").forEach((button) => {
     button.classList.toggle("active", button.dataset.view === viewId);
   });
-  const isSummary = viewId === "summaryView";
-  $("viewTitle").textContent = isSummary ? "Dashboard" : "Movimientos financieros";
-  $("viewSubtitle").textContent = isSummary
-    ? "Resumen mensual de ingresos, gastos y ahorro."
-    : "Importa estados de cuenta, registra ajustes y revisa movimientos.";
+  const titles = {
+    summaryView: ["Dashboard", "Resumen mensual de ingresos, gastos y ahorro."],
+    movementsView: ["Movimientos financieros", "Importa estados de cuenta, registra ajustes y revisa movimientos."],
+    weddingView: ["Gastos de boda", "Presupuesto, abonos y proveedores del evento."],
+  };
+  const [title, subtitle] = titles[viewId] || titles.summaryView;
+  $("viewTitle").textContent = title;
+  $("viewSubtitle").textContent = subtitle;
 }
 
 function bindNavigation() {
   document.querySelectorAll(".nav-item").forEach((button) => {
     button.addEventListener("click", () => setActiveView(button.dataset.view));
+  });
+  document.querySelectorAll("[data-view-shortcut]").forEach((button) => {
+    button.addEventListener("click", () => setActiveView(button.dataset.viewShortcut));
   });
 }
 
@@ -463,6 +563,96 @@ $("deleteSelectedBtn").addEventListener("click", askDeleteSelectedTransactions);
 
 $("importsSearch").addEventListener("input", renderImports);
 $("transactionsSearch").addEventListener("input", renderDashboard);
+$("weddingSearch").addEventListener("input", renderWedding);
+
+$("weddingBudgetForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const budget = Number($("weddingBudgetInput").value || 0);
+  state.wedding = await api("/api/wedding/budget", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ budget }),
+  });
+  renderWedding();
+});
+
+$("weddingExpenseForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = Object.fromEntries(new FormData(form).entries());
+  state.wedding = await api("/api/wedding/expenses", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  form.reset();
+  setWeddingDefaultDates();
+  renderWedding();
+});
+
+$("weddingSampleBtn").addEventListener("click", async () => {
+  state.wedding = await api("/api/wedding/sample-data", { method: "POST" });
+  renderWedding();
+});
+
+$("weddingExportBtn").addEventListener("click", () => {
+  const rows = [
+    ["Fecha", "Concepto", "Categoria", "Proveedor", "Monto total", "Abonado", "Pendiente", "Estado"],
+    ...state.wedding.expenses.map((expense) => [
+      expense.date,
+      expense.description,
+      expense.category,
+      expense.vendor,
+      expense.amount,
+      expense.paid_amount,
+      expense.pending_amount,
+      expense.status,
+    ]),
+  ];
+  const csv = rows
+    .map((row) => row.map((cell) => `"${String(cell ?? "").replaceAll('"', '""')}"`).join(","))
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "gastos-boda.csv";
+  link.click();
+  URL.revokeObjectURL(url);
+});
+
+$("weddingExpensesBody").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-wedding-action]");
+  if (!button) return;
+  const row = button.closest("tr[data-wedding-expense-id]");
+  if (!row) return;
+  const expenseId = row.dataset.weddingExpenseId;
+  if (button.dataset.weddingAction === "payment") {
+    const form = $("weddingPaymentForm");
+    form.reset();
+    form.elements.expenseId.value = expenseId;
+    form.elements.date.value = new Date().toISOString().slice(0, 10);
+    openModal("weddingPaymentModal");
+  } else if (button.dataset.weddingAction === "delete") {
+    await api(`/api/wedding/expenses/${expenseId}`, { method: "DELETE" });
+    await loadWedding();
+  }
+});
+
+$("weddingPaymentForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = Object.fromEntries(new FormData(form).entries());
+  const expenseId = data.expenseId;
+  delete data.expenseId;
+  state.wedding = await api(`/api/wedding/expenses/${expenseId}/payments`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  closeModals();
+  renderWedding();
+});
 
 $("editTransactionForm").addEventListener("submit", async (event) => {
   event.preventDefault();

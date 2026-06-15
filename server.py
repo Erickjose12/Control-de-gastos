@@ -24,6 +24,7 @@ STATIC = ROOT / "static"
 DATA = ROOT / "data"
 DB = DATA / "finanzas.db"
 EXCHANGE_RATE_URL = "https://open.er-api.com/v6/latest/USD"
+LEGACY_WEDDING_DB = ROOT.parent / "Control-de-gastos-de-boda" / "data" / "boda.db"
 
 ACCOUNTS = [
     "GYT - Cuenta ahorro sueldo",
@@ -56,6 +57,45 @@ SAVINGS_CATEGORIES = ["Ahorro Banrural", "Ahorro extra"]
 TRANSFER_CATEGORIES = ["Pago tarjeta", "Transferencia entre cuentas", "Retiro efectivo"]
 CATEGORIES = INCOME_CATEGORIES + EXPENSE_CATEGORIES + SAVINGS_CATEGORIES + TRANSFER_CATEGORIES
 TRANSACTION_TYPES = ["Ingreso", "Gasto", "Ahorro", "Venta USD", "Transferencia"]
+WEDDING_CATEGORIES = [
+    "Lugar",
+    "Comida",
+    "Decoracion",
+    "Musica",
+    "Fotografia",
+    "Vestuario",
+    "Invitaciones",
+    "Otro",
+]
+WEDDING_SAMPLE_EXPENSES = [
+    {
+        "date": "2026-08-15",
+        "description": "Reserva de salon",
+        "category": "Lugar",
+        "vendor": "Jardin Las Flores",
+        "amount": 15000,
+        "initialPayment": 5000,
+        "paymentDate": "2026-08-15",
+    },
+    {
+        "date": "2026-08-20",
+        "description": "Cena para invitados",
+        "category": "Comida",
+        "vendor": "Banquetes Aurora",
+        "amount": 22000,
+        "initialPayment": 22000,
+        "paymentDate": "2026-06-15",
+    },
+    {
+        "date": "2026-09-01",
+        "description": "Fotografia y video",
+        "category": "Fotografia",
+        "vendor": "Luz Studio",
+        "amount": 6800,
+        "initialPayment": 3500,
+        "paymentDate": "2026-09-01",
+    },
+]
 
 DATE_RE = re.compile(r"^(\d{2}/\d{2}/\d{4})\s+(\d+)\s+(.*)$")
 AMOUNT_RE = re.compile(r"(-?Q[\d,]+\.\d{2})\s+(Q[\d,]+\.\d{2})$")
@@ -111,9 +151,40 @@ def init_db() -> None:
               source_import_id INTEGER,
               created_at TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS wedding_settings (
+              key TEXT PRIMARY KEY,
+              value TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS wedding_expenses (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              date TEXT NOT NULL,
+              description TEXT NOT NULL,
+              category TEXT NOT NULL,
+              vendor TEXT NOT NULL DEFAULT '',
+              amount REAL NOT NULL CHECK (amount >= 0),
+              legacy_id INTEGER UNIQUE,
+              created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS wedding_payments (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              expense_id INTEGER NOT NULL,
+              date TEXT NOT NULL,
+              amount REAL NOT NULL CHECK (amount > 0),
+              note TEXT NOT NULL DEFAULT '',
+              legacy_id INTEGER UNIQUE,
+              created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              FOREIGN KEY (expense_id) REFERENCES wedding_expenses(id) ON DELETE CASCADE
+            );
             """
         )
+        conn.execute(
+            "INSERT OR IGNORE INTO wedding_settings (key, value) VALUES ('budget', '60000')"
+        )
         migrate_existing_data(conn)
+        migrate_wedding_data(conn)
 
 
 def migrate_existing_data(conn: sqlite3.Connection) -> None:
@@ -147,6 +218,73 @@ def migrate_existing_data(conn: sqlite3.Connection) -> None:
         WHERE description LIKE '%BAM%'
         """
     )
+
+
+def migrate_wedding_data(conn: sqlite3.Connection) -> None:
+    if not LEGACY_WEDDING_DB.exists():
+        return
+    legacy = sqlite3.connect(LEGACY_WEDDING_DB)
+    legacy.row_factory = sqlite3.Row
+    try:
+        budget_row = legacy.execute("SELECT value FROM settings WHERE key='budget'").fetchone()
+        if budget_row:
+            conn.execute(
+                """
+                INSERT INTO wedding_settings (key, value)
+                VALUES ('budget', ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                """,
+                (budget_row["value"],),
+            )
+
+        id_map: dict[int, int] = {}
+        for row in legacy.execute("SELECT * FROM expenses ORDER BY id").fetchall():
+            existing = conn.execute(
+                "SELECT id FROM wedding_expenses WHERE legacy_id=?",
+                (row["id"],),
+            ).fetchone()
+            if existing:
+                id_map[row["id"]] = existing["id"]
+                continue
+            cursor = conn.execute(
+                """
+                INSERT INTO wedding_expenses
+                (date, description, category, vendor, amount, legacy_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    row["date"],
+                    row["description"],
+                    row["category"],
+                    row["vendor"],
+                    float(row["amount"]),
+                    row["id"],
+                    row["created_at"],
+                ),
+            )
+            id_map[row["id"]] = cursor.lastrowid
+
+        for row in legacy.execute("SELECT * FROM payments ORDER BY id").fetchall():
+            expense_id = id_map.get(row["expense_id"])
+            if not expense_id:
+                continue
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO wedding_payments
+                (expense_id, date, amount, note, legacy_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    expense_id,
+                    row["date"],
+                    float(row["amount"]),
+                    row["note"],
+                    row["id"],
+                    row["created_at"],
+                ),
+            )
+    finally:
+        legacy.close()
 
 
 def seed_examples(conn: sqlite3.Connection) -> None:
@@ -434,6 +572,67 @@ def fetch_usd_gtq_rate() -> dict:
         }
 
 
+def serialize_wedding_expense(row: sqlite3.Row) -> dict:
+    amount = float(row["amount"])
+    paid_amount = min(float(row["paid_amount"]), amount)
+    pending_amount = max(amount - paid_amount, 0)
+    if paid_amount >= amount and amount > 0:
+        status = "Pagado"
+    elif paid_amount > 0:
+        status = "Abonado"
+    else:
+        status = "Pendiente"
+    return {
+        "id": row["id"],
+        "date": row["date"],
+        "description": row["description"],
+        "category": row["category"],
+        "vendor": row["vendor"],
+        "amount": amount,
+        "paid_amount": paid_amount,
+        "pending_amount": pending_amount,
+        "status": status,
+    }
+
+
+def build_wedding_state() -> dict:
+    with db_connection() as conn:
+        budget_row = conn.execute(
+            "SELECT value FROM wedding_settings WHERE key='budget'"
+        ).fetchone()
+        rows = conn.execute(
+            """
+            SELECT
+              e.id,
+              e.date,
+              e.description,
+              e.category,
+              e.vendor,
+              e.amount,
+              COALESCE(SUM(p.amount), 0) AS paid_amount
+            FROM wedding_expenses e
+            LEFT JOIN wedding_payments p ON p.expense_id = e.id
+            GROUP BY e.id
+            ORDER BY e.date DESC, e.id DESC
+            """
+        ).fetchall()
+    expenses = [serialize_wedding_expense(row) for row in rows]
+    budget = float(budget_row["value"]) if budget_row else 0
+    spent = sum(expense["amount"] for expense in expenses)
+    paid = sum(expense["paid_amount"] for expense in expenses)
+    pending = sum(expense["pending_amount"] for expense in expenses)
+    return {
+        "budget": budget,
+        "spent": spent,
+        "paid": paid,
+        "pending": pending,
+        "available": budget - spent,
+        "progress": spent / budget if budget else 0,
+        "categories": WEDDING_CATEGORIES,
+        "expenses": expenses,
+    }
+
+
 class App(BaseHTTPRequestHandler):
     server_version = "FinanzasLocal/0.1"
 
@@ -459,6 +658,15 @@ class App(BaseHTTPRequestHandler):
         elif parsed.path == "/api/transactions/delete":
             body = self.read_json()
             self.delete_transactions(body.get("ids", []))
+        elif parsed.path == "/api/wedding/expenses":
+            body = self.read_json()
+            self.create_wedding_expense(body)
+        elif parsed.path == "/api/wedding/sample-data":
+            self.load_wedding_sample_data()
+        elif parsed.path.startswith("/api/wedding/expenses/") and parsed.path.endswith("/payments"):
+            expense_id = int(parsed.path.split("/")[4])
+            body = self.read_json()
+            self.create_wedding_payment(expense_id, body)
         else:
             self.send_error(404)
 
@@ -468,6 +676,9 @@ class App(BaseHTTPRequestHandler):
             transaction_id = int(parsed.path.rsplit("/", 1)[-1])
             body = self.read_json()
             self.update_transaction(transaction_id, body)
+        elif parsed.path == "/api/wedding/budget":
+            body = self.read_json()
+            self.update_wedding_budget(body)
         else:
             self.send_error(404)
 
@@ -480,6 +691,9 @@ class App(BaseHTTPRequestHandler):
         elif parsed.path.startswith("/api/transactions/"):
             transaction_id = int(parsed.path.rsplit("/", 1)[-1])
             self.delete_transaction(transaction_id)
+        elif parsed.path.startswith("/api/wedding/expenses/"):
+            expense_id = int(parsed.path.rsplit("/", 1)[-1])
+            self.delete_wedding_expense(expense_id)
         else:
             self.send_error(404)
 
@@ -524,6 +738,8 @@ class App(BaseHTTPRequestHandler):
             self.send_json(build_dashboard(month))
         elif path == "/api/exchange-rate":
             self.send_json(fetch_usd_gtq_rate())
+        elif path == "/api/wedding/state":
+            self.send_json(build_wedding_state())
         else:
             self.send_error(404)
 
@@ -680,6 +896,135 @@ class App(BaseHTTPRequestHandler):
                 conn.execute("UPDATE imports SET action='Registrado' WHERE id=?", (row["id"],))
         month = rows[0]["date"][:7] if rows else None
         self.send_json({"ok": True, "count": len(rows), "month": month})
+
+    def update_wedding_budget(self, body: dict) -> None:
+        budget = float(body.get("budget") or 0)
+        with db_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO wedding_settings (key, value)
+                VALUES ('budget', ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                """,
+                (str(budget),),
+            )
+        self.send_json(build_wedding_state())
+
+    def create_wedding_expense(self, body: dict) -> None:
+        amount = float(body.get("amount") or 0)
+        initial_payment = float(body.get("initialPayment") or 0)
+        if amount <= 0:
+            self.send_error(400, "El monto debe ser mayor a cero")
+            return
+        description = (body.get("description", "").strip() or "Gasto de boda")[:90]
+        category = body.get("category") or "Otro"
+        vendor = (body.get("vendor", "").strip())[:90]
+        date = normalize_date(body.get("date", datetime.now().strftime("%Y-%m-%d")))
+        payment_date = normalize_date(body.get("paymentDate") or date)
+        now = datetime.now().isoformat(timespec="seconds")
+        with db_connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO wedding_expenses
+                (date, description, category, vendor, amount, legacy_id, created_at)
+                VALUES (?, ?, ?, ?, ?, NULL, ?)
+                """,
+                (date, description, category, vendor, amount, now),
+            )
+            if initial_payment > 0:
+                conn.execute(
+                    """
+                    INSERT INTO wedding_payments
+                    (expense_id, date, amount, note, legacy_id, created_at)
+                    VALUES (?, ?, ?, ?, NULL, ?)
+                    """,
+                    (
+                        cursor.lastrowid,
+                        payment_date,
+                        min(initial_payment, amount),
+                        "Abono inicial",
+                        now,
+                    ),
+                )
+        self.send_json(build_wedding_state(), status=201)
+
+    def create_wedding_payment(self, expense_id: int, body: dict) -> None:
+        amount = float(body.get("amount") or 0)
+        if amount <= 0:
+            self.send_error(400, "El abono debe ser mayor a cero")
+            return
+        date = normalize_date(body.get("date", datetime.now().strftime("%Y-%m-%d")))
+        note = (body.get("note", "").strip())[:90]
+        now = datetime.now().isoformat(timespec="seconds")
+        with db_connection() as conn:
+            exists = conn.execute("SELECT id FROM wedding_expenses WHERE id=?", (expense_id,)).fetchone()
+            if not exists:
+                self.send_error(404, "Gasto de boda no encontrado")
+                return
+            conn.execute(
+                """
+                INSERT INTO wedding_payments
+                (expense_id, date, amount, note, legacy_id, created_at)
+                VALUES (?, ?, ?, ?, NULL, ?)
+                """,
+                (expense_id, date, amount, note, now),
+            )
+        self.send_json(build_wedding_state(), status=201)
+
+    def delete_wedding_expense(self, expense_id: int) -> None:
+        with db_connection() as conn:
+            conn.execute("DELETE FROM wedding_payments WHERE expense_id=?", (expense_id,))
+            cursor = conn.execute("DELETE FROM wedding_expenses WHERE id=?", (expense_id,))
+        if cursor.rowcount == 0:
+            self.send_error(404, "Gasto de boda no encontrado")
+        else:
+            self.send_json({"ok": True})
+
+    def load_wedding_sample_data(self) -> None:
+        with db_connection() as conn:
+            conn.execute("DELETE FROM wedding_payments")
+            conn.execute("DELETE FROM wedding_expenses")
+            conn.execute(
+                """
+                INSERT INTO wedding_settings (key, value)
+                VALUES ('budget', '60000')
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                """
+            )
+            now = datetime.now().isoformat(timespec="seconds")
+            for expense in WEDDING_SAMPLE_EXPENSES:
+                cursor = conn.execute(
+                    """
+                    INSERT INTO wedding_expenses
+                    (date, description, category, vendor, amount, legacy_id, created_at)
+                    VALUES (?, ?, ?, ?, ?, NULL, ?)
+                    """,
+                    (
+                        expense["date"],
+                        expense["description"],
+                        expense["category"],
+                        expense["vendor"],
+                        float(expense["amount"]),
+                        now,
+                    ),
+                )
+                initial_payment = float(expense.get("initialPayment") or 0)
+                if initial_payment > 0:
+                    conn.execute(
+                        """
+                        INSERT INTO wedding_payments
+                        (expense_id, date, amount, note, legacy_id, created_at)
+                        VALUES (?, ?, ?, ?, NULL, ?)
+                        """,
+                        (
+                            cursor.lastrowid,
+                            expense.get("paymentDate") or expense["date"],
+                            min(initial_payment, float(expense["amount"])),
+                            "Abono inicial",
+                            now,
+                        ),
+                    )
+        self.send_json(build_wedding_state(), status=201)
 
     def serve_static(self, path: str) -> None:
         file_path = STATIC / ("index.html" if path in ("", "/") else path.lstrip("/"))

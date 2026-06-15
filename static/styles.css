@@ -199,6 +199,27 @@ input[type="file"] {
   border-left-color: var(--amber);
 }
 
+.compact-kpis {
+  margin: 0;
+  padding: 14px;
+}
+
+.compact-kpis .kpi {
+  padding: 12px 14px;
+}
+
+.wedding-dashboard-card {
+  margin-top: 16px;
+}
+
+.wedding-progress {
+  padding: 14px;
+}
+
+.wedding-progress .bar-fill {
+  background: var(--teal);
+}
+
 .view-section {
   display: none;
 }
@@ -321,6 +342,57 @@ input[type="file"] {
 .manual-form .primary {
   justify-self: start;
   min-width: 140px;
+}
+
+.budget-form,
+.wedding-form {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 14px;
+}
+
+.budget-form label,
+.wedding-form label {
+  color: var(--muted);
+  display: grid;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 5px;
+  min-width: 0;
+}
+
+.budget-form label {
+  grid-column: span 2;
+}
+
+.wedding-form .primary {
+  justify-self: start;
+  min-width: 160px;
+}
+
+.pill {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  min-height: 28px;
+  padding: 6px 10px;
+}
+
+.pill.paid {
+  background: #ecfdf5;
+  color: var(--green);
+}
+
+.pill.partial {
+  background: #eef6ff;
+  color: var(--blue);
+}
+
+.pill.pending {
+  background: #fffbeb;
+  color: var(--amber);
 }
 
 .primary,
@@ -828,6 +900,15 @@ td select {
 
   .manual-form {
     grid-template-columns: 1fr;
+  }
+
+  .budget-form,
+  .wedding-form {
+    grid-template-columns: 1fr;
+  }
+
+  .budget-form label {
+    grid-column: auto;
   }
 
   .wide-field {

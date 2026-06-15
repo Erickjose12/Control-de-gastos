@@ -16,6 +16,7 @@
         <nav class="nav-menu" aria-label="Menu principal">
           <button class="nav-item active" type="button" data-view="summaryView">Dashboard</button>
           <button class="nav-item" type="button" data-view="movementsView">Movimientos financieros</button>
+          <button class="nav-item" type="button" data-view="weddingView">Gastos de boda</button>
         </nav>
         <div class="sidebar-note">
           <span>Proximamente</span>
@@ -73,6 +74,41 @@
               </div>
               <div id="accountSummary" class="account-summary"></div>
             </section>
+          </section>
+
+          <section class="panel wedding-dashboard-card">
+            <div class="panel-head">
+              <div>
+                <h2>Presupuesto de boda</h2>
+                <p>Avance general del presupuesto, pagos y pendiente.</p>
+              </div>
+              <button class="ghost" type="button" data-view-shortcut="weddingView">Ver boda</button>
+            </div>
+            <section class="kpis compact-kpis" aria-label="Resumen de boda">
+              <article class="kpi">
+                <span>Presupuesto</span>
+                <strong id="weddingDashBudget">Q0.00</strong>
+              </article>
+              <article class="kpi expense">
+                <span>Gastado</span>
+                <strong id="weddingDashSpent">Q0.00</strong>
+              </article>
+              <article class="kpi income">
+                <span>Pagado</span>
+                <strong id="weddingDashPaid">Q0.00</strong>
+              </article>
+              <article class="kpi balance">
+                <span>Disponible</span>
+                <strong id="weddingDashAvailable">Q0.00</strong>
+              </article>
+            </section>
+            <div class="wedding-progress">
+              <div class="bar-label">
+                <span>Avance del presupuesto</span>
+                <span id="weddingDashProgress">0%</span>
+              </div>
+              <div class="bar-track"><div id="weddingDashBar" class="bar-fill"></div></div>
+            </div>
           </section>
         </section>
 
@@ -227,6 +263,119 @@
             </div>
           </section>
         </section>
+
+        <section id="weddingView" class="view-section">
+          <section class="kpis" aria-label="Resumen de boda">
+            <article class="kpi">
+              <span>Presupuesto</span>
+              <strong id="weddingBudgetKpi">Q0.00</strong>
+            </article>
+            <article class="kpi expense">
+              <span>Gastado</span>
+              <strong id="weddingSpentKpi">Q0.00</strong>
+            </article>
+            <article class="kpi income">
+              <span>Pagado</span>
+              <strong id="weddingPaidKpi">Q0.00</strong>
+            </article>
+            <article class="kpi balance">
+              <span>Disponible</span>
+              <strong id="weddingAvailableKpi">Q0.00</strong>
+            </article>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Avance del presupuesto</h2>
+              <strong id="weddingProgressText">0%</strong>
+            </div>
+            <div class="wedding-progress">
+              <div class="bar-track"><div id="weddingProgressBar" class="bar-fill"></div></div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Presupuesto total</h2>
+            </div>
+            <form id="weddingBudgetForm" class="budget-form">
+              <label>
+                Monto presupuestado
+                <input id="weddingBudgetInput" name="budget" type="number" min="0" step="0.01" placeholder="0.00" />
+              </label>
+              <button class="ghost" type="submit">Actualizar</button>
+              <button id="weddingSampleBtn" class="primary" type="button">Cargar ejemplo</button>
+              <button id="weddingExportBtn" class="ghost" type="button">Exportar CSV</button>
+            </form>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Registrar gasto de boda</h2>
+            </div>
+            <form id="weddingExpenseForm" class="wedding-form">
+              <label>
+                Concepto
+                <input name="description" type="text" maxlength="90" placeholder="Ej. Fotografia" required />
+              </label>
+              <label>
+                Categoria
+                <select id="weddingCategory" name="category"></select>
+              </label>
+              <label>
+                Fecha
+                <input name="date" type="date" required />
+              </label>
+              <label>
+                Monto total
+                <input name="amount" type="number" min="0.01" step="0.01" placeholder="0.00" required />
+              </label>
+              <label>
+                Abono inicial
+                <input name="initialPayment" type="number" min="0" step="0.01" placeholder="0.00" />
+              </label>
+              <label>
+                Fecha de abono
+                <input name="paymentDate" type="date" />
+              </label>
+              <label class="wide-field">
+                Proveedor
+                <input name="vendor" type="text" maxlength="90" placeholder="Nombre del proveedor" />
+              </label>
+              <button class="primary" type="submit">Guardar gasto</button>
+            </form>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Gastos registrados</h2>
+            </div>
+            <div class="table-tools">
+              <label>
+                Buscar gastos de boda
+                <input id="weddingSearch" type="search" placeholder="Fecha, concepto, categoria, proveedor, estado..." />
+              </label>
+            </div>
+            <div class="table-wrap">
+              <table class="wedding-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Concepto</th>
+                    <th>Categoria</th>
+                    <th>Proveedor</th>
+                    <th>Total</th>
+                    <th>Abonado</th>
+                    <th>Pendiente</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="weddingExpensesBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
       </main>
     </div>
 
@@ -293,6 +442,35 @@
           <button class="ghost" type="button" data-close-modal>Cancelar</button>
           <button id="confirmDeleteBtn" class="danger" type="button">Eliminar</button>
         </div>
+      </section>
+    </div>
+
+    <div id="weddingPaymentModal" class="modal" hidden>
+      <div class="modal-backdrop" data-close-modal></div>
+      <section class="modal-card small" role="dialog" aria-modal="true" aria-labelledby="weddingPaymentTitle">
+        <div class="modal-head">
+          <h2 id="weddingPaymentTitle">Agregar abono</h2>
+          <button class="icon-button" type="button" data-close-modal aria-label="Cerrar">X</button>
+        </div>
+        <form id="weddingPaymentForm" class="modal-form">
+          <input name="expenseId" type="hidden" />
+          <label>
+            Fecha
+            <input name="date" type="date" required />
+          </label>
+          <label>
+            Monto
+            <input name="amount" type="number" min="0.01" step="0.01" required />
+          </label>
+          <label class="wide-field">
+            Nota
+            <input name="note" type="text" maxlength="90" placeholder="Ej. Segundo abono" />
+          </label>
+          <div class="modal-actions form-actions">
+            <button class="ghost" type="button" data-close-modal>Cancelar</button>
+            <button class="primary" type="submit">Guardar abono</button>
+          </div>
+        </form>
       </section>
     </div>
     <script src="/app.js"></script>
