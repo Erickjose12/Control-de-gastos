@@ -18,6 +18,7 @@ const state = {
   exchangeRate: null,
   deleteTransactionId: null,
   deleteTransactionIds: [],
+  weddingAttachmentExpenseId: null,
 };
 
 const fmtMoney = new Intl.NumberFormat("es-GT", {
@@ -300,8 +301,9 @@ function renderWedding() {
               <td class="actions-cell">
                 ${
                   expense.has_attachment
-                    ? `<a class="table-action success-text" href="/api/wedding/expenses/${expense.id}/attachment" target="_blank" rel="noopener">Ver archivo</a>`
-                    : `<button class="table-action" type="button" disabled>Sin archivo</button>`
+                    ? `<a class="table-action success-text" href="/api/wedding/expenses/${expense.id}/attachment" target="_blank" rel="noopener">Ver</a>
+                       <button class="table-action" type="button" data-wedding-action="attachment">Cambiar</button>`
+                    : `<button class="table-action" type="button" data-wedding-action="attachment">Adjuntar</button>`
                 }
                 <button class="table-action" type="button" data-wedding-action="payment">Abonar</button>
                 <button class="table-action danger-text" type="button" data-wedding-action="delete">Eliminar</button>
@@ -402,6 +404,7 @@ function closeModals() {
   });
   state.deleteTransactionId = null;
   state.deleteTransactionIds = [];
+  state.weddingAttachmentExpenseId = null;
 }
 
 function detailRow(label, value) {
@@ -601,10 +604,30 @@ $("weddingExpensesBody").addEventListener("click", async (event) => {
     form.elements.expenseId.value = expenseId;
     form.elements.date.value = new Date().toISOString().slice(0, 10);
     openModal("weddingPaymentModal");
+  } else if (button.dataset.weddingAction === "attachment") {
+    const form = $("weddingAttachmentForm");
+    form.reset();
+    state.weddingAttachmentExpenseId = expenseId;
+    form.elements.expenseId.value = expenseId;
+    openModal("weddingAttachmentModal");
   } else if (button.dataset.weddingAction === "delete") {
     await api(`/api/wedding/expenses/${expenseId}`, { method: "DELETE" });
     await loadWedding();
   }
+});
+
+$("weddingAttachmentForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const expenseId = form.elements.expenseId.value || state.weddingAttachmentExpenseId;
+  const file = form.elements.attachment.files[0];
+  if (!file) return;
+  state.wedding = await api(`/api/wedding/expenses/${expenseId}/attachment`, {
+    method: "POST",
+    body: new FormData(form),
+  });
+  closeModals();
+  renderWedding();
 });
 
 $("weddingPaymentForm").addEventListener("submit", async (event) => {

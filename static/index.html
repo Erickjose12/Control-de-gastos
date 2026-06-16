@@ -457,6 +457,26 @@
         </form>
       </section>
     </div>
+    <div id="weddingAttachmentModal" class="modal" hidden>
+      <div class="modal-backdrop" data-close-modal></div>
+      <section class="modal-card small" role="dialog" aria-modal="true" aria-labelledby="weddingAttachmentTitle">
+        <div class="modal-head">
+          <h2 id="weddingAttachmentTitle">Adjuntar documento</h2>
+          <button class="icon-button" type="button" data-close-modal aria-label="Cerrar">X</button>
+        </div>
+        <form id="weddingAttachmentForm" class="modal-form">
+          <input name="expenseId" type="hidden" />
+          <label class="wide-field">
+            PDF o imagen
+            <input name="attachment" type="file" accept="application/pdf,image/*" required />
+          </label>
+          <div class="modal-actions form-actions">
+            <button class="ghost" type="button" data-close-modal>Cancelar</button>
+            <button class="primary" type="submit">Guardar archivo</button>
+          </div>
+        </form>
+      </section>
+    </div>
     <script src="/app.js"></script>
   </body>
 </html>

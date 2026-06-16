@@ -716,6 +716,10 @@ class App(BaseHTTPRequestHandler):
             expense_id = int(parsed.path.split("/")[4])
             body = self.read_json()
             self.create_wedding_payment(expense_id, body)
+        elif parsed.path.startswith("/api/wedding/expenses/") and parsed.path.endswith("/attachment"):
+            expense_id = int(parsed.path.split("/")[4])
+            _, file = self.read_wedding_expense_payload()
+            self.update_wedding_attachment(expense_id, file)
         else:
             self.send_error(404)
 
@@ -1047,6 +1051,36 @@ class App(BaseHTTPRequestHandler):
                 (expense_id, date, amount, note, now),
             )
         self.send_json(build_wedding_state(), status=201)
+
+    def update_wedding_attachment(self, expense_id: int, file: dict | None) -> None:
+        if not file:
+            self.send_error(400, "Debes seleccionar un archivo PDF o imagen")
+            return
+        with db_connection() as conn:
+            existing = conn.execute(
+                "SELECT attachment_path FROM wedding_expenses WHERE id=?",
+                (expense_id,),
+            ).fetchone()
+            if not existing:
+                self.send_error(404, "Gasto de boda no encontrado")
+                return
+            try:
+                filename, file_path, mime = save_wedding_attachment(expense_id, file)
+            except ValueError as exc:
+                self.send_error(400, str(exc))
+                return
+            relative_path = str(file_path.relative_to(DATA))
+            conn.execute(
+                """
+                UPDATE wedding_expenses
+                SET attachment_name=?, attachment_path=?, attachment_mime=?
+                WHERE id=?
+                """,
+                (filename, relative_path, mime, expense_id),
+            )
+        if existing["attachment_path"] != relative_path:
+            delete_wedding_attachment(existing["attachment_path"])
+        self.send_json(build_wedding_state())
 
     def delete_wedding_expense(self, expense_id: int) -> None:
         with db_connection() as conn:
