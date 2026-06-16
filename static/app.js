@@ -275,6 +275,7 @@ function renderWedding() {
         fmtMoney.format(expense.paid_amount),
         fmtMoney.format(expense.pending_amount),
         expense.attachment_name || "",
+        expense.attachment_mime || "",
         expense.has_attachment ? "con archivo documento evidencia" : "sin archivo",
       ],
       query,
@@ -301,7 +302,7 @@ function renderWedding() {
               <td class="actions-cell">
                 ${
                   expense.has_attachment
-                    ? `<a class="table-action success-text" href="/api/wedding/expenses/${expense.id}/attachment" target="_blank" rel="noopener">Ver</a>
+                    ? `<button class="table-action success-text" type="button" data-wedding-action="view-attachment" data-attachment-name="${escapeHtml(expense.attachment_name || "Archivo")}" data-attachment-mime="${escapeHtml(expense.attachment_mime || "")}">Ver</button>
                        <button class="table-action" type="button" data-wedding-action="attachment">Cambiar</button>`
                     : `<button class="table-action" type="button" data-wedding-action="attachment">Adjuntar</button>`
                 }
@@ -405,12 +406,25 @@ function closeModals() {
   state.deleteTransactionId = null;
   state.deleteTransactionIds = [];
   state.weddingAttachmentExpenseId = null;
+  if ($("weddingAttachmentViewer")) {
+    $("weddingAttachmentViewer").innerHTML = "";
+  }
 }
 
 function detailRow(label, value) {
   return `
     <div class="detail-label">${escapeHtml(label)}</div>
     <div class="detail-value">${escapeHtml(value)}</div>`;
+}
+
+function showWeddingAttachment(expenseId, name, mime) {
+  const url = `/api/wedding/expenses/${expenseId}/attachment`;
+  $("weddingAttachmentViewTitle").textContent = name || "Documento adjunto";
+  $("weddingAttachmentOpenLink").href = url;
+  $("weddingAttachmentViewer").innerHTML = mime.startsWith("image/")
+    ? `<img src="${url}" alt="${escapeHtml(name || "Documento adjunto")}" />`
+    : `<iframe src="${url}" title="${escapeHtml(name || "Documento adjunto")}"></iframe>`;
+  openModal("weddingAttachmentViewModal");
 }
 
 async function showTransactionDetail(transactionId) {
@@ -604,6 +618,12 @@ $("weddingExpensesBody").addEventListener("click", async (event) => {
     form.elements.expenseId.value = expenseId;
     form.elements.date.value = new Date().toISOString().slice(0, 10);
     openModal("weddingPaymentModal");
+  } else if (button.dataset.weddingAction === "view-attachment") {
+    showWeddingAttachment(
+      expenseId,
+      button.dataset.attachmentName || "Documento adjunto",
+      button.dataset.attachmentMime || "",
+    );
   } else if (button.dataset.weddingAction === "attachment") {
     const form = $("weddingAttachmentForm");
     form.reset();

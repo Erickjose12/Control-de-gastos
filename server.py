@@ -605,6 +605,7 @@ def serialize_wedding_expense(row: sqlite3.Row) -> dict:
         "pending_amount": pending_amount,
         "status": status,
         "attachment_name": row["attachment_name"],
+        "attachment_mime": row["attachment_mime"],
         "has_attachment": bool(row["attachment_path"]),
     }
 

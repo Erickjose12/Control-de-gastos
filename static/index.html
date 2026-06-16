@@ -477,6 +477,20 @@
         </form>
       </section>
     </div>
+    <div id="weddingAttachmentViewModal" class="modal" hidden>
+      <div class="modal-backdrop" data-close-modal></div>
+      <section class="modal-card file-modal" role="dialog" aria-modal="true" aria-labelledby="weddingAttachmentViewTitle">
+        <div class="modal-head">
+          <h2 id="weddingAttachmentViewTitle">Documento adjunto</h2>
+          <button class="icon-button" type="button" data-close-modal aria-label="Cerrar">X</button>
+        </div>
+        <div id="weddingAttachmentViewer" class="file-viewer"></div>
+        <div class="modal-actions">
+          <a id="weddingAttachmentOpenLink" class="ghost link-button" href="#" target="_blank" rel="noopener">Abrir aparte</a>
+          <button class="primary" type="button" data-close-modal>Cerrar</button>
+        </div>
+      </section>
+    </div>
     <script src="/app.js"></script>
   </body>
 </html>

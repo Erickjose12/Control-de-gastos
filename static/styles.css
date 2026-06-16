@@ -808,6 +808,10 @@ td select {
   max-width: min(460px, calc(100% - 32px));
 }
 
+.modal-card.file-modal {
+  max-width: min(980px, calc(100% - 32px));
+}
+
 .modal-head,
 .modal-actions {
   align-items: center;
@@ -906,6 +910,30 @@ td select {
   background: #fff2f0;
   border-color: #f2c4bf;
   color: var(--red);
+}
+
+.file-viewer {
+  background: #f8fafc;
+  min-height: 520px;
+  padding: 12px;
+}
+
+.file-viewer img,
+.file-viewer iframe {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  display: block;
+  height: min(68vh, 620px);
+  object-fit: contain;
+  width: 100%;
+}
+
+.link-button {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  text-decoration: none;
 }
 
 .confirm-text {
