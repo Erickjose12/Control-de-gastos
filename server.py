@@ -659,7 +659,7 @@ def safe_filename(value: str) -> str:
 def save_wedding_attachment(expense_id: int, file: dict) -> tuple[str, Path, str]:
     original_name = safe_filename(file.get("filename", "archivo"))
     suffix = Path(original_name).suffix.lower()
-    allowed = {".pdf", ".png", ".jpg", ".jpeg", ".webp"}
+    allowed = {".pdf", ".png", ".jpg", ".jpeg", ".jfif", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif"}
     if suffix not in allowed:
         raise ValueError("Solo se permiten archivos PDF o imagenes.")
     mime = mimetypes.guess_type(original_name)[0] or "application/octet-stream"

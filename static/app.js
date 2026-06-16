@@ -35,6 +35,12 @@ async function api(path, options = {}) {
   return res.json();
 }
 
+function readableError(error) {
+  const text = String(error?.message || error || "Ocurrio un error");
+  const match = text.match(/<p>Message:\s*([^<]+)<\/p>/i);
+  return match ? match[1].replaceAll("..", ".") : text;
+}
+
 function optionList(values, selected) {
   return values
     .map((value) => `<option ${value === selected ? "selected" : ""}>${escapeHtml(value)}</option>`)
@@ -409,6 +415,9 @@ function closeModals() {
   if ($("weddingAttachmentViewer")) {
     $("weddingAttachmentViewer").innerHTML = "";
   }
+  if ($("weddingAttachmentStatus")) {
+    $("weddingAttachmentStatus").textContent = "";
+  }
 }
 
 function detailRow(label, value) {
@@ -597,13 +606,19 @@ $("weddingBudgetForm").addEventListener("submit", async (event) => {
 $("weddingExpenseForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
-  state.wedding = await api("/api/wedding/expenses", {
-    method: "POST",
-    body: new FormData(form),
-  });
-  form.reset();
-  setWeddingDefaultDates();
-  renderWedding();
+  $("weddingStatus").textContent = "Guardando gasto...";
+  try {
+    state.wedding = await api("/api/wedding/expenses", {
+      method: "POST",
+      body: new FormData(form),
+    });
+    form.reset();
+    setWeddingDefaultDates();
+    $("weddingStatus").textContent = "Gasto guardado correctamente.";
+    renderWedding();
+  } catch (error) {
+    $("weddingStatus").textContent = readableError(error);
+  }
 });
 
 $("weddingExpensesBody").addEventListener("click", async (event) => {
@@ -627,6 +642,7 @@ $("weddingExpensesBody").addEventListener("click", async (event) => {
   } else if (button.dataset.weddingAction === "attachment") {
     const form = $("weddingAttachmentForm");
     form.reset();
+    $("weddingAttachmentStatus").textContent = "";
     state.weddingAttachmentExpenseId = expenseId;
     form.elements.expenseId.value = expenseId;
     openModal("weddingAttachmentModal");
@@ -642,12 +658,18 @@ $("weddingAttachmentForm").addEventListener("submit", async (event) => {
   const expenseId = form.elements.expenseId.value || state.weddingAttachmentExpenseId;
   const file = form.elements.attachment.files[0];
   if (!file) return;
-  state.wedding = await api(`/api/wedding/expenses/${expenseId}/attachment`, {
-    method: "POST",
-    body: new FormData(form),
-  });
-  closeModals();
-  renderWedding();
+  $("weddingAttachmentStatus").textContent = "Guardando archivo...";
+  try {
+    state.wedding = await api(`/api/wedding/expenses/${expenseId}/attachment`, {
+      method: "POST",
+      body: new FormData(form),
+    });
+    $("weddingAttachmentStatus").textContent = "";
+    closeModals();
+    renderWedding();
+  } catch (error) {
+    $("weddingAttachmentStatus").textContent = readableError(error);
+  }
 });
 
 $("weddingPaymentForm").addEventListener("submit", async (event) => {

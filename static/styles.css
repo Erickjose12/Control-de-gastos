@@ -438,6 +438,12 @@ input[type="file"] {
   padding: 0 14px 14px;
 }
 
+.wedding-form .status,
+.modal-form .status {
+  margin: 0;
+  padding: 0;
+}
+
 .table-wrap {
   overflow: auto;
   max-height: 430px;

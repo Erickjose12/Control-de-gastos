@@ -282,7 +282,7 @@
             <div class="panel-head">
               <h2>Registrar gasto de boda</h2>
             </div>
-            <form id="weddingExpenseForm" class="wedding-form">
+            <form id="weddingExpenseForm" class="wedding-form" enctype="multipart/form-data">
               <label>
                 Concepto
                 <input name="description" type="text" maxlength="90" placeholder="Ej. Fotografia" required />
@@ -309,13 +309,14 @@
               </label>
               <label class="wide-field">
                 Documento o evidencia
-                <input name="attachment" type="file" accept="application/pdf,image/*" />
+                <input name="attachment" type="file" accept=".pdf,.png,.jpg,.jpeg,.jfif,.webp,.gif,.bmp,.tif,.tiff,.heic,.heif,application/pdf,image/*" />
               </label>
               <label class="wide-field">
                 Proveedor
                 <input name="vendor" type="text" maxlength="90" placeholder="Nombre del proveedor" />
               </label>
               <button class="primary" type="submit">Guardar gasto</button>
+              <p id="weddingStatus" class="status wide-field"></p>
             </form>
           </section>
 
@@ -464,12 +465,13 @@
           <h2 id="weddingAttachmentTitle">Adjuntar documento</h2>
           <button class="icon-button" type="button" data-close-modal aria-label="Cerrar">X</button>
         </div>
-        <form id="weddingAttachmentForm" class="modal-form">
+        <form id="weddingAttachmentForm" class="modal-form" enctype="multipart/form-data">
           <input name="expenseId" type="hidden" />
           <label class="wide-field">
             PDF o imagen
-            <input name="attachment" type="file" accept="application/pdf,image/*" required />
+            <input name="attachment" type="file" accept=".pdf,.png,.jpg,.jpeg,.jfif,.webp,.gif,.bmp,.tif,.tiff,.heic,.heif,application/pdf,image/*" required />
           </label>
+          <p id="weddingAttachmentStatus" class="status wide-field"></p>
           <div class="modal-actions form-actions">
             <button class="ghost" type="button" data-close-modal>Cancelar</button>
             <button class="primary" type="submit">Guardar archivo</button>
