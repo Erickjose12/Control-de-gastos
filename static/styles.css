@@ -503,35 +503,35 @@ table {
 }
 
 .wedding-table {
-  min-width: 1450px;
+  min-width: 1260px;
 }
 
 .wedding-col-date {
-  width: 120px;
+  width: 105px;
 }
 
 .wedding-col-concept {
-  width: 220px;
+  width: 180px;
 }
 
 .wedding-col-category {
-  width: 150px;
-}
-
-.wedding-col-vendor {
-  width: 210px;
-}
-
-.wedding-col-money {
   width: 125px;
 }
 
+.wedding-col-vendor {
+  width: 165px;
+}
+
+.wedding-col-money {
+  width: 112px;
+}
+
 .wedding-col-status {
-  width: 120px;
+  width: 115px;
 }
 
 .wedding-col-actions {
-  width: 255px;
+  width: 234px;
 }
 
 th,
@@ -633,7 +633,13 @@ td.money {
 }
 
 .wedding-table .actions-cell {
-  min-width: 245px;
+  min-width: 224px;
+}
+
+.wedding-table .table-action {
+  margin-right: 5px;
+  min-height: 28px;
+  padding: 5px 7px;
 }
 
 .actions-cell {
