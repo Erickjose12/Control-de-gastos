@@ -114,7 +114,7 @@
         </section>
 
         <section id="movementsView" class="view-section">
-          <section class="layout">
+          <section class="layout movements-import-layout">
             <section class="panel import-panel">
               <div class="panel-head">
                 <h2>Importar banco</h2>
@@ -142,48 +142,6 @@
               <p id="importStatus" class="status"></p>
             </section>
 
-            <section class="panel manual-panel">
-              <div class="panel-head">
-                <h2>Registro manual</h2>
-              </div>
-              <form id="manualForm" class="manual-form">
-                <label>
-                  Fecha
-                  <input name="date" type="date" required />
-                </label>
-                <label>
-                  Tipo
-                  <select id="manualType" name="type">
-                    <option>Ahorro</option>
-                    <option>Venta USD</option>
-                    <option>Ingreso</option>
-                    <option>Gasto</option>
-                    <option>Transferencia</option>
-                  </select>
-                </label>
-                <label>
-                  Cuenta
-                  <select id="manualAccount" name="account"></select>
-                </label>
-                <label>
-                  Monto Q
-                  <input name="amount" type="number" min="0.01" step="0.01" placeholder="0.00" required />
-                </label>
-                <label>
-                  USD
-                  <input name="usdAmount" type="number" min="0" step="0.01" placeholder="Opcional" />
-                </label>
-                <label>
-                  Tipo cambio
-                  <input id="exchangeRateInput" name="exchangeRate" type="number" min="0" step="0.0001" placeholder="Auto USD-GTQ" />
-                </label>
-                <label class="wide-field">
-                  Descripcion
-                  <input name="description" type="text" maxlength="75" placeholder="Descripcion" />
-                </label>
-                <button class="primary" type="submit">Guardar</button>
-              </form>
-            </section>
           </section>
 
           <section class="panel">
@@ -283,6 +241,49 @@
               <span>Registros</span>
               <strong id="savingSaleCountKpi">0</strong>
             </article>
+          </section>
+
+          <section class="panel manual-panel">
+            <div class="panel-head">
+              <h2>Registro manual</h2>
+            </div>
+            <form id="manualForm" class="manual-form">
+              <label>
+                Fecha
+                <input name="date" type="date" required />
+              </label>
+              <label>
+                Tipo
+                <select id="manualType" name="type">
+                  <option>Ahorro</option>
+                  <option>Venta USD</option>
+                  <option>Ingreso</option>
+                  <option>Gasto</option>
+                  <option>Transferencia</option>
+                </select>
+              </label>
+              <label>
+                Cuenta
+                <select id="manualAccount" name="account"></select>
+              </label>
+              <label>
+                Monto Q
+                <input name="amount" type="number" min="0.01" step="0.01" placeholder="0.00" required />
+              </label>
+              <label>
+                USD
+                <input name="usdAmount" type="number" min="0" step="0.01" placeholder="Opcional" />
+              </label>
+              <label>
+                Tipo cambio
+                <input id="exchangeRateInput" name="exchangeRate" type="number" min="0" step="0.0001" placeholder="Auto USD-GTQ" />
+              </label>
+              <label class="wide-field">
+                Descripcion
+                <input name="description" type="text" maxlength="75" placeholder="Descripcion" />
+              </label>
+              <button class="primary" type="submit">Guardar</button>
+            </form>
           </section>
 
           <section class="panel">

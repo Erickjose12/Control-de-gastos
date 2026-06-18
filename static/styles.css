@@ -234,6 +234,10 @@ input[type="file"] {
   grid-template-columns: 1fr 1fr;
 }
 
+.movements-import-layout {
+  grid-template-columns: 1fr;
+}
+
 .summary-grid {
   display: grid;
   gap: 16px;
