@@ -16,6 +16,7 @@
         <nav class="nav-menu" aria-label="Menu principal">
           <button class="nav-item active" type="button" data-view="summaryView">Dashboard</button>
           <button class="nav-item" type="button" data-view="movementsView">Movimientos financieros</button>
+          <button class="nav-item" type="button" data-view="savingsView">Ahorro/Venta</button>
           <button class="nav-item" type="button" data-view="weddingView">Gastos de boda</button>
         </nav>
         <div class="sidebar-note">
@@ -259,6 +260,65 @@
                   </tr>
                 </thead>
                 <tbody id="transactionsBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section id="savingsView" class="view-section">
+          <section class="kpis compact-kpis" aria-label="Resumen de ahorro y venta">
+            <article class="kpi rate">
+              <span>Ahorros manuales</span>
+              <strong id="savingManualKpi">Q0.00</strong>
+            </article>
+            <article class="kpi income">
+              <span>Ventas USD</span>
+              <strong id="usdSaleKpi">Q0.00</strong>
+            </article>
+            <article class="kpi balance">
+              <span>Total registrado</span>
+              <strong id="savingSaleTotalKpi">Q0.00</strong>
+            </article>
+            <article class="kpi">
+              <span>Registros</span>
+              <strong id="savingSaleCountKpi">0</strong>
+            </article>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Ahorros y ventas del mes</h2>
+                <p>Registros manuales de ahorro y venta USD.</p>
+              </div>
+            </div>
+            <div class="table-tools">
+              <label>
+                Buscar ahorro o venta
+                <input id="savingSaleSearch" type="search" placeholder="Fecha, cuenta, descripcion, tipo, categoria..." />
+              </label>
+            </div>
+            <div class="table-wrap">
+              <table class="saving-sale-table">
+                <colgroup>
+                  <col class="col-date" />
+                  <col class="col-type" />
+                  <col class="col-category" />
+                  <col class="col-account" />
+                  <col class="col-description" />
+                  <col class="col-money" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Tipo</th>
+                    <th>Categoria</th>
+                    <th>Cuenta</th>
+                    <th>Descripcion</th>
+                    <th>Monto</th>
+                  </tr>
+                </thead>
+                <tbody id="savingSaleBody"></tbody>
               </table>
             </div>
           </section>

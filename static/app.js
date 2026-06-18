@@ -216,6 +216,49 @@ function renderDashboard() {
           )
           .join("");
   updateBulkDeleteState();
+  renderSavingSales();
+}
+
+function savingSaleRows() {
+  const transactions = state.dashboard?.transactions || [];
+  return transactions.filter((tx) => !tx.source_import_id && ["Ahorro", "Venta USD"].includes(tx.type));
+}
+
+function renderSavingSales() {
+  const rows = savingSaleRows();
+  const savings = rows.filter((tx) => tx.type === "Ahorro").reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+  const sales = rows.filter((tx) => tx.type === "Venta USD").reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+  $("savingManualKpi").textContent = fmtMoney.format(savings);
+  $("usdSaleKpi").textContent = fmtMoney.format(sales);
+  $("savingSaleTotalKpi").textContent = fmtMoney.format(savings + sales);
+  $("savingSaleCountKpi").textContent = rows.length;
+
+  const query = normalizeSearch($("savingSaleSearch").value);
+  const filteredRows = rows.filter((tx) =>
+    matchesSearch(
+      [tx.date, tx.type, tx.category, tx.account, tx.description, fmtMoney.format(tx.amount)],
+      query,
+    ),
+  );
+
+  $("savingSaleBody").innerHTML =
+    rows.length === 0
+      ? `<tr><td class="empty" colspan="6">Sin ahorros o ventas manuales en este mes.</td></tr>`
+      : filteredRows.length === 0
+        ? `<tr><td class="empty" colspan="6">No hay registros que coincidan con la busqueda.</td></tr>`
+        : filteredRows
+          .map(
+            (tx) => `
+            <tr>
+              <td>${escapeHtml(tx.date)}</td>
+              <td>${escapeHtml(tx.type)}</td>
+              <td>${escapeHtml(tx.category)}</td>
+              <td>${escapeHtml(tx.account)}</td>
+              <td class="description">${escapeHtml(tx.description)}</td>
+              <td class="money ${amountClassForType(tx.type)}">${fmtMoney.format(tx.amount)}</td>
+            </tr>`,
+          )
+          .join("");
 }
 
 function renderImports() {
@@ -385,6 +428,7 @@ function setActiveView(viewId) {
   const titles = {
     summaryView: ["Dashboard", "Resumen mensual de ingresos, gastos y ahorro."],
     movementsView: ["Movimientos financieros", "Importa estados de cuenta, registra ajustes y revisa movimientos."],
+    savingsView: ["Ahorro/Venta", "Seguimiento de ahorros y ventas USD registrados manualmente."],
     weddingView: ["Gastos de boda", "Presupuesto, abonos y proveedores del evento."],
   };
   const [title, subtitle] = titles[viewId] || titles.summaryView;
@@ -590,6 +634,7 @@ $("deleteSelectedBtn").addEventListener("click", askDeleteSelectedTransactions);
 
 $("importsSearch").addEventListener("input", renderImports);
 $("transactionsSearch").addEventListener("input", renderDashboard);
+$("savingSaleSearch").addEventListener("input", renderSavingSales);
 $("weddingSearch").addEventListener("input", renderWedding);
 
 $("weddingBudgetForm").addEventListener("submit", async (event) => {

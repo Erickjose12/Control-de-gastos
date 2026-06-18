@@ -472,6 +472,10 @@ table {
   width: 360px;
 }
 
+.saving-sale-table {
+  min-width: 1080px;
+}
+
 .col-date {
   width: 115px;
 }
@@ -581,6 +585,12 @@ td.money {
 
 .review-table th:last-child,
 .review-table td.money {
+  text-align: left;
+}
+
+.saving-sale-table th:last-child,
+.saving-sale-table td.money {
+  padding-left: 12px;
   text-align: left;
 }
 
