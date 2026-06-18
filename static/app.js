@@ -243,19 +243,26 @@ function renderSavingSales() {
 
   $("savingSaleBody").innerHTML =
     rows.length === 0
-      ? `<tr><td class="empty" colspan="6">Sin ahorros o ventas manuales en este mes.</td></tr>`
+      ? `<tr><td class="empty" colspan="7">Sin ahorros o ventas manuales en este mes.</td></tr>`
       : filteredRows.length === 0
-        ? `<tr><td class="empty" colspan="6">No hay registros que coincidan con la busqueda.</td></tr>`
+        ? `<tr><td class="empty" colspan="7">No hay registros que coincidan con la busqueda.</td></tr>`
         : filteredRows
           .map(
             (tx) => `
-            <tr>
+            <tr data-id="${tx.id}">
               <td>${escapeHtml(tx.date)}</td>
               <td>${escapeHtml(tx.type)}</td>
               <td>${escapeHtml(tx.category)}</td>
               <td>${escapeHtml(tx.account)}</td>
               <td class="description">${escapeHtml(tx.description)}</td>
               <td class="money ${amountClassForType(tx.type)}">${fmtMoney.format(tx.amount)}</td>
+              <td class="actions-cell">
+                ${
+                  tx.attachment_path
+                    ? `<button class="table-action success-text" type="button" data-saving-action="view-attachment" data-attachment-name="${escapeHtml(tx.attachment_name || "Boleta")}" data-attachment-mime="${escapeHtml(tx.attachment_mime || "")}">Ver</button>`
+                    : `<span class="muted-pill">Sin archivo</span>`
+                }
+              </td>
             </tr>`,
           )
           .join("");
@@ -480,6 +487,16 @@ function showWeddingAttachment(expenseId, name, mime) {
   openModal("weddingAttachmentViewModal");
 }
 
+function showTransactionAttachment(transactionId, name, mime) {
+  const url = `/api/transactions/${transactionId}/attachment`;
+  $("weddingAttachmentViewTitle").textContent = name || "Boleta adjunta";
+  $("weddingAttachmentOpenLink").href = url;
+  $("weddingAttachmentViewer").innerHTML = mime.startsWith("image/")
+    ? `<img src="${url}" alt="${escapeHtml(name || "Boleta adjunta")}" />`
+    : `<iframe src="${url}" title="${escapeHtml(name || "Boleta adjunta")}"></iframe>`;
+  openModal("weddingAttachmentViewModal");
+}
+
 async function showTransactionDetail(transactionId) {
   const tx = await api(`/api/transactions/${transactionId}`);
   $("transactionDetail").innerHTML = [
@@ -579,12 +596,14 @@ $("exchangeRateInput").addEventListener("input", calculateGtqFromUsd);
 $("manualForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
-  const data = Object.fromEntries(new FormData(form).entries());
+  const formData = new FormData(form);
+  const data = Object.fromEntries(formData.entries());
+  $("manualStatus").textContent = "Guardando movimiento...";
   await api("/api/transactions", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+    body: formData,
   });
+  $("manualStatus").textContent = "Movimiento manual guardado.";
   $("importStatus").textContent = "Movimiento manual guardado.";
   if (data.date) {
     $("monthInput").value = data.date.slice(0, 7);
@@ -636,6 +655,19 @@ $("importsSearch").addEventListener("input", renderImports);
 $("transactionsSearch").addEventListener("input", renderDashboard);
 $("savingSaleSearch").addEventListener("input", renderSavingSales);
 $("weddingSearch").addEventListener("input", renderWedding);
+
+$("savingSaleBody").addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-saving-action]");
+  if (!button) return;
+  const transactionId = button.closest("tr").dataset.id;
+  if (button.dataset.savingAction === "view-attachment") {
+    showTransactionAttachment(
+      transactionId,
+      button.dataset.attachmentName || "Boleta adjunta",
+      button.dataset.attachmentMime || "",
+    );
+  }
+});
 
 $("weddingBudgetForm").addEventListener("submit", async (event) => {
   event.preventDefault();

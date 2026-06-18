@@ -413,6 +413,18 @@ input[type="file"] {
   color: var(--amber);
 }
 
+.muted-pill {
+  background: #eef2f7;
+  border: 1px solid #d7dee8;
+  border-radius: 6px;
+  color: #52657f;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  min-height: 28px;
+  padding: 5px 10px;
+}
+
 .primary,
 .ghost {
   border: 1px solid transparent;
@@ -477,7 +489,7 @@ table {
 }
 
 .saving-sale-table {
-  min-width: 1080px;
+  min-width: 1180px;
 }
 
 .col-date {

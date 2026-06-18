@@ -25,6 +25,7 @@ STATIC = ROOT / "static"
 DATA = ROOT / "data"
 DB = DATA / "finanzas.db"
 WEDDING_FILES = DATA / "wedding_files"
+TRANSACTION_FILES = DATA / "transaction_files"
 EXCHANGE_RATE_URL = "https://open.er-api.com/v6/latest/USD"
 LEGACY_WEDDING_DB = ROOT.parent / "Control-de-gastos-de-boda" / "data" / "boda.db"
 
@@ -122,6 +123,7 @@ def db_connection():
 def init_db() -> None:
     DATA.mkdir(parents=True, exist_ok=True)
     WEDDING_FILES.mkdir(parents=True, exist_ok=True)
+    TRANSACTION_FILES.mkdir(parents=True, exist_ok=True)
     with db_connection() as conn:
         conn.executescript(
             """
@@ -189,6 +191,9 @@ def init_db() -> None:
         ensure_column(conn, "wedding_expenses", "attachment_name", "TEXT")
         ensure_column(conn, "wedding_expenses", "attachment_path", "TEXT")
         ensure_column(conn, "wedding_expenses", "attachment_mime", "TEXT")
+        ensure_column(conn, "transactions", "attachment_name", "TEXT")
+        ensure_column(conn, "transactions", "attachment_path", "TEXT")
+        ensure_column(conn, "transactions", "attachment_mime", "TEXT")
         migrate_existing_data(conn)
         migrate_wedding_data(conn)
 
@@ -672,12 +677,39 @@ def save_wedding_attachment(expense_id: int, file: dict) -> tuple[str, Path, str
     return original_name, file_path, mime
 
 
+def save_transaction_attachment(transaction_id: int, file: dict) -> tuple[str, Path, str]:
+    original_name = safe_filename(file.get("filename", "archivo"))
+    suffix = Path(original_name).suffix.lower()
+    allowed = {".pdf", ".png", ".jpg", ".jpeg", ".jfif", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif"}
+    if suffix not in allowed:
+        raise ValueError("Solo se permiten archivos PDF o imagenes.")
+    mime = mimetypes.guess_type(original_name)[0] or "application/octet-stream"
+    if suffix == ".pdf":
+        mime = "application/pdf"
+    elif not mime.startswith("image/"):
+        mime = "image/jpeg"
+    file_path = TRANSACTION_FILES / f"{transaction_id}_{original_name}"
+    file_path.write_bytes(file.get("data", b""))
+    return original_name, file_path, mime
+
+
 def delete_wedding_attachment(relative_path: str | None) -> None:
     if not relative_path:
         return
     file_path = (DATA / relative_path).resolve()
     try:
         file_path.relative_to(WEDDING_FILES.resolve())
+    except ValueError:
+        return
+    file_path.unlink(missing_ok=True)
+
+
+def delete_transaction_attachment(relative_path: str | None) -> None:
+    if not relative_path:
+        return
+    file_path = (DATA / relative_path).resolve()
+    try:
+        file_path.relative_to(TRANSACTION_FILES.resolve())
     except ValueError:
         return
     file_path.unlink(missing_ok=True)
@@ -703,8 +735,8 @@ class App(BaseHTTPRequestHandler):
         elif parsed.path == "/api/imports/commit":
             self.commit_imports()
         elif parsed.path == "/api/transactions":
-            body = self.read_json()
-            self.create_transaction(body)
+            body, file = self.read_transaction_payload()
+            self.create_transaction(body, file)
         elif parsed.path == "/api/transactions/delete":
             body = self.read_json()
             self.delete_transactions(body.get("ids", []))
@@ -780,13 +812,17 @@ class App(BaseHTTPRequestHandler):
                 rows = conn.execute("SELECT * FROM transactions ORDER BY date DESC, id DESC").fetchall()
             self.send_json([rowdict(row) for row in rows])
         elif path.startswith("/api/transactions/"):
-            transaction_id = int(path.rsplit("/", 1)[-1])
-            with db_connection() as conn:
-                row = conn.execute("SELECT * FROM transactions WHERE id=?", (transaction_id,)).fetchone()
-            if row is None:
-                self.send_error(404, "Movimiento no encontrado")
+            if path.endswith("/attachment"):
+                transaction_id = int(path.split("/")[3])
+                self.serve_transaction_attachment(transaction_id)
             else:
-                self.send_json(rowdict(row))
+                transaction_id = int(path.rsplit("/", 1)[-1])
+                with db_connection() as conn:
+                    row = conn.execute("SELECT * FROM transactions WHERE id=?", (transaction_id,)).fetchone()
+                if row is None:
+                    self.send_error(404, "Movimiento no encontrado")
+                else:
+                    self.send_json(rowdict(row))
         elif path == "/api/dashboard":
             month = query.get("month", [datetime.now().strftime("%Y-%m")])[0]
             self.send_json(build_dashboard(month))
@@ -835,6 +871,16 @@ class App(BaseHTTPRequestHandler):
             return fields, file
         return self.read_json(), None
 
+    def read_transaction_payload(self) -> tuple[dict, dict | None]:
+        content_type = self.headers.get("Content-Type", "")
+        if content_type.startswith("multipart/form-data"):
+            fields, files = parse_multipart(self)
+            file = files.get("attachment")
+            if file and not file.get("filename"):
+                file = None
+            return fields, file
+        return self.read_json(), None
+
     def update_import(self, body: dict) -> None:
         allowed = {"suggested_type", "suggested_category", "account", "action", "notes"}
         updates = {k: v for k, v in body.items() if k in allowed}
@@ -847,10 +893,15 @@ class App(BaseHTTPRequestHandler):
 
     def delete_transaction(self, transaction_id: int) -> None:
         with db_connection() as conn:
+            row = conn.execute(
+                "SELECT attachment_path FROM transactions WHERE id=?",
+                (transaction_id,),
+            ).fetchone()
             cursor = conn.execute("DELETE FROM transactions WHERE id=?", (transaction_id,))
         if cursor.rowcount == 0:
             self.send_error(404, "Movimiento no encontrado")
         else:
+            delete_transaction_attachment(row["attachment_path"] if row else None)
             self.send_json({"ok": True})
 
     def delete_transactions(self, transaction_ids: list) -> None:
@@ -860,7 +911,13 @@ class App(BaseHTTPRequestHandler):
             return
         placeholders = ",".join("?" for _ in ids)
         with db_connection() as conn:
+            rows = conn.execute(
+                f"SELECT attachment_path FROM transactions WHERE id IN ({placeholders})",
+                ids,
+            ).fetchall()
             cursor = conn.execute(f"DELETE FROM transactions WHERE id IN ({placeholders})", ids)
+        for row in rows:
+            delete_transaction_attachment(row["attachment_path"])
         self.send_json({"ok": True, "count": cursor.rowcount})
 
     def update_transaction(self, transaction_id: int, body: dict) -> None:
@@ -898,7 +955,7 @@ class App(BaseHTTPRequestHandler):
         else:
             self.send_json({"ok": True})
 
-    def create_transaction(self, body: dict) -> None:
+    def create_transaction(self, body: dict, file: dict | None = None) -> None:
         tx_type = body.get("type", "Gasto")
         account = body.get("account", "Otro")
         category = body.get("category") or default_category_for_type(tx_type, account)
@@ -921,7 +978,7 @@ class App(BaseHTTPRequestHandler):
         description = description[:75]
         now = datetime.now().isoformat(timespec="seconds")
         with db_connection() as conn:
-            conn.execute(
+            cursor = conn.execute(
                 """
                 INSERT INTO transactions
                 (date, type, category, description, account, amount, source_import_id, created_at)
@@ -929,7 +986,22 @@ class App(BaseHTTPRequestHandler):
                 """,
                 (date, tx_type, category, description, account, amount, now),
             )
-        self.send_json({"ok": True})
+            transaction_id = cursor.lastrowid
+            if file:
+                try:
+                    filename, file_path, mime = save_transaction_attachment(transaction_id, file)
+                except ValueError as exc:
+                    self.send_error(400, str(exc))
+                    return
+                conn.execute(
+                    """
+                    UPDATE transactions
+                    SET attachment_name=?, attachment_path=?, attachment_mime=?
+                    WHERE id=?
+                    """,
+                    (filename, str(file_path.relative_to(DATA)), mime, transaction_id),
+                )
+        self.send_json({"ok": True, "id": transaction_id})
 
     def commit_imports(self) -> None:
         now = datetime.now().isoformat(timespec="seconds")
@@ -1152,6 +1224,31 @@ class App(BaseHTTPRequestHandler):
                 WHERE id=?
                 """,
                 (expense_id,),
+            ).fetchone()
+        if not row or not row["attachment_path"]:
+            self.send_error(404, "Archivo no encontrado")
+            return
+        file_path = DATA / row["attachment_path"]
+        if not file_path.exists() or not file_path.is_file():
+            self.send_error(404, "Archivo no encontrado")
+            return
+        content_type = row["attachment_mime"] or "application/octet-stream"
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Disposition", f'inline; filename="{row["attachment_name"]}"')
+        self.send_header("Content-Length", str(file_path.stat().st_size))
+        self.end_headers()
+        self.wfile.write(file_path.read_bytes())
+
+    def serve_transaction_attachment(self, transaction_id: int) -> None:
+        with db_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT attachment_name, attachment_path, attachment_mime
+                FROM transactions
+                WHERE id=?
+                """,
+                (transaction_id,),
             ).fetchone()
         if not row or not row["attachment_path"]:
             self.send_error(404, "Archivo no encontrado")
