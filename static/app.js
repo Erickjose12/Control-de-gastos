@@ -139,7 +139,7 @@ async function loadRecurring() {
   const month = $("monthInput").value;
   state.recurring = await api(`/api/recurring/state?month=${encodeURIComponent(month)}`);
   $("recurringCategory").innerHTML = optionList(state.recurring.categories, "Suscripciones");
-  $("recurringAccount").innerHTML = optionList(state.recurring.accounts, "Credito Cash");
+  $("recurringAccount").innerHTML = optionList(state.recurring.accounts, "TC");
   renderRecurring();
 }
 
@@ -297,7 +297,7 @@ function resetRecurringForm() {
   form.reset();
   form.elements.id.value = "";
   $("recurringCategory").innerHTML = optionList(state.recurring.categories, "Suscripciones");
-  $("recurringAccount").innerHTML = optionList(state.recurring.accounts, "Credito Cash");
+  $("recurringAccount").innerHTML = optionList(state.recurring.accounts, "TC");
   $("recurringFormTitle").textContent = "Registrar gasto recurrente";
   $("recurringSaveBtn").textContent = "Guardar gasto";
   $("recurringCancelBtn").hidden = true;

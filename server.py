@@ -107,20 +107,20 @@ RECURRING_CATEGORIES = [
     "Ahorro",
     "Otro",
 ]
-RECURRING_ACCOUNTS = ["Debito GYT", "Credito Cash", "Efectivo", "Otro"]
+RECURRING_ACCOUNTS = ["TC", "Tarjeta de debito", "Efectivo"]
 RECURRING_SAMPLE_EXPENSES = [
-    ("NORDIC GYM_CUOTA GYM", "Salud y bienestar", "Debito GYT", 200.00, "Mensual"),
-    ("Netflix", "Suscripciones", "Credito Cash", 76.21, "Mensual"),
-    ("HBO Max", "Suscripciones", "Credito Cash", 29.90, "Mensual"),
-    ("Google One", "Suscripciones", "Credito Cash", 15.18, "Mensual"),
-    ("Crunchyroll", "Suscripciones", "Credito Cash", 38.45, "Mensual"),
-    ("Microsoft OneDrive", "Suscripciones", "Credito Cash", 152.49, "Anual"),
-    ("Tigo Residencial", "Servicios", "Credito Cash", 344.00, "Mensual"),
-    ("Disney plus", "Suscripciones", "Credito Cash", 129.61, "Mensual"),
-    ("awesomescreenshot", "Suscripciones", "Credito Cash", 61.03, "Mensual"),
-    ("Chatgpt y CODEX", "Suscripciones", "Credito Cash", 152.57, "Mensual"),
+    ("NORDIC GYM_CUOTA GYM", "Salud y bienestar", "Tarjeta de debito", 200.00, "Mensual"),
+    ("Netflix", "Suscripciones", "TC", 76.21, "Mensual"),
+    ("HBO Max", "Suscripciones", "TC", 29.90, "Mensual"),
+    ("Google One", "Suscripciones", "TC", 15.18, "Mensual"),
+    ("Crunchyroll", "Suscripciones", "TC", 38.45, "Mensual"),
+    ("Microsoft OneDrive", "Suscripciones", "TC", 152.49, "Anual"),
+    ("Tigo Residencial", "Servicios", "TC", 344.00, "Mensual"),
+    ("Disney plus", "Suscripciones", "TC", 129.61, "Mensual"),
+    ("awesomescreenshot", "Suscripciones", "TC", 61.03, "Mensual"),
+    ("Chatgpt y CODEX", "Suscripciones", "TC", 152.57, "Mensual"),
     ("Cuota Casas", "Vivienda", "Efectivo", 1000.00, "Mensual"),
-    ("CUOTA FONDO", "Ahorro", "Debito GYT", 510.00, "Mensual"),
+    ("CUOTA FONDO", "Ahorro", "Tarjeta de debito", 510.00, "Mensual"),
 ]
 
 DATE_RE = re.compile(r"^(\d{2}/\d{2}/\d{4})\s+(\d+)\s+(.*)$")
@@ -241,6 +241,7 @@ def init_db() -> None:
         migrate_existing_data(conn)
         migrate_wedding_data(conn)
         seed_recurring_expenses(conn)
+        migrate_recurring_accounts(conn)
 
 
 def ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
@@ -262,6 +263,14 @@ def seed_recurring_expenses(conn: sqlite3.Connection) -> None:
         """,
         [(*expense, now) for expense in RECURRING_SAMPLE_EXPENSES],
     )
+
+
+def migrate_recurring_accounts(conn: sqlite3.Connection) -> None:
+    conn.execute("UPDATE recurring_expenses SET account='TC' WHERE account='Credito Cash'")
+    conn.execute(
+        "UPDATE recurring_expenses SET account='Tarjeta de debito' WHERE account='Debito GYT'"
+    )
+    conn.execute("UPDATE recurring_expenses SET account='Efectivo' WHERE account='Otro'")
 
 
 def migrate_existing_data(conn: sqlite3.Connection) -> None:
