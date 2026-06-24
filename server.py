@@ -99,6 +99,29 @@ WEDDING_SAMPLE_EXPENSES = [
         "paymentDate": "2026-09-01",
     },
 ]
+RECURRING_CATEGORIES = [
+    "Vivienda",
+    "Servicios",
+    "Suscripciones",
+    "Salud y bienestar",
+    "Ahorro",
+    "Otro",
+]
+RECURRING_ACCOUNTS = ["Debito GYT", "Credito Cash", "Efectivo", "Otro"]
+RECURRING_SAMPLE_EXPENSES = [
+    ("NORDIC GYM_CUOTA GYM", "Salud y bienestar", "Debito GYT", 200.00, "Mensual"),
+    ("Netflix", "Suscripciones", "Credito Cash", 76.21, "Mensual"),
+    ("HBO Max", "Suscripciones", "Credito Cash", 29.90, "Mensual"),
+    ("Google One", "Suscripciones", "Credito Cash", 15.18, "Mensual"),
+    ("Crunchyroll", "Suscripciones", "Credito Cash", 38.45, "Mensual"),
+    ("Microsoft OneDrive", "Suscripciones", "Credito Cash", 152.49, "Anual"),
+    ("Tigo Residencial", "Servicios", "Credito Cash", 344.00, "Mensual"),
+    ("Disney plus", "Suscripciones", "Credito Cash", 129.61, "Mensual"),
+    ("awesomescreenshot", "Suscripciones", "Credito Cash", 61.03, "Mensual"),
+    ("Chatgpt y CODEX", "Suscripciones", "Credito Cash", 152.57, "Mensual"),
+    ("Cuota Casas", "Vivienda", "Efectivo", 1000.00, "Mensual"),
+    ("CUOTA FONDO", "Ahorro", "Debito GYT", 510.00, "Mensual"),
+]
 
 DATE_RE = re.compile(r"^(\d{2}/\d{2}/\d{4})\s+(\d+)\s+(.*)$")
 AMOUNT_RE = re.compile(r"(-?Q[\d,]+\.\d{2})\s+(Q[\d,]+\.\d{2})$")
@@ -183,6 +206,27 @@ def init_db() -> None:
               created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
               FOREIGN KEY (expense_id) REFERENCES wedding_expenses(id) ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS recurring_expenses (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              name TEXT NOT NULL,
+              category TEXT NOT NULL,
+              account TEXT NOT NULL,
+              amount REAL NOT NULL CHECK (amount > 0),
+              frequency TEXT NOT NULL CHECK (frequency IN ('Mensual', 'Anual')),
+              next_due_date TEXT,
+              active INTEGER NOT NULL DEFAULT 1,
+              created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS recurring_payments (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              recurring_expense_id INTEGER NOT NULL,
+              month TEXT NOT NULL,
+              paid_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              UNIQUE(recurring_expense_id, month),
+              FOREIGN KEY (recurring_expense_id) REFERENCES recurring_expenses(id) ON DELETE CASCADE
+            );
             """
         )
         conn.execute(
@@ -196,12 +240,28 @@ def init_db() -> None:
         ensure_column(conn, "transactions", "attachment_mime", "TEXT")
         migrate_existing_data(conn)
         migrate_wedding_data(conn)
+        seed_recurring_expenses(conn)
 
 
 def ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
     columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
     if column not in columns:
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
+def seed_recurring_expenses(conn: sqlite3.Connection) -> None:
+    count = conn.execute("SELECT COUNT(*) AS count FROM recurring_expenses").fetchone()["count"]
+    if count:
+        return
+    now = datetime.now().isoformat(timespec="seconds")
+    conn.executemany(
+        """
+        INSERT INTO recurring_expenses
+        (name, category, account, amount, frequency, next_due_date, active, created_at)
+        VALUES (?, ?, ?, ?, ?, NULL, 1, ?)
+        """,
+        [(*expense, now) for expense in RECURRING_SAMPLE_EXPENSES],
+    )
 
 
 def migrate_existing_data(conn: sqlite3.Connection) -> None:
@@ -656,6 +716,64 @@ def build_wedding_state() -> dict:
     }
 
 
+def build_recurring_state(month: str) -> dict:
+    month = month if re.match(r"^\d{4}-\d{2}$", month or "") else datetime.now().strftime("%Y-%m")
+    with db_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT r.*,
+                   CASE WHEN p.id IS NULL THEN 0 ELSE 1 END AS paid
+            FROM recurring_expenses r
+            LEFT JOIN recurring_payments p
+              ON p.recurring_expense_id = r.id AND p.month = ?
+            ORDER BY r.active DESC, r.category, r.name
+            """,
+            (month,),
+        ).fetchall()
+
+    items = []
+    monthly_equivalent = 0.0
+    annual_provision = 0.0
+    due_this_month = 0.0
+    paid_this_month = 0.0
+    for row in rows:
+        item = rowdict(row)
+        amount = float(item["amount"])
+        equivalent = amount if item["frequency"] == "Mensual" else amount / 12
+        is_due = item["frequency"] == "Mensual" or (
+            item["frequency"] == "Anual"
+            and item.get("next_due_date")
+            and item["next_due_date"][:7] == month
+        )
+        item["monthly_equivalent"] = round(equivalent, 2)
+        item["is_due"] = bool(is_due and item["active"])
+        item["paid"] = bool(item["paid"])
+        items.append(item)
+        if not item["active"]:
+            continue
+        monthly_equivalent += equivalent
+        if item["frequency"] == "Anual":
+            annual_provision += equivalent
+        if is_due:
+            due_this_month += amount
+            if item["paid"]:
+                paid_this_month += amount
+
+    return {
+        "month": month,
+        "items": items,
+        "categories": RECURRING_CATEGORIES,
+        "accounts": RECURRING_ACCOUNTS,
+        "summary": {
+            "monthlyEquivalent": round(monthly_equivalent, 2),
+            "annualProvision": round(annual_provision, 2),
+            "dueThisMonth": round(due_this_month, 2),
+            "paidThisMonth": round(paid_this_month, 2),
+            "pendingThisMonth": round(max(0, due_this_month - paid_this_month), 2),
+        },
+    }
+
+
 def safe_filename(value: str) -> str:
     name = Path(value).name.strip() or "archivo"
     return re.sub(r"[^A-Za-z0-9._-]+", "_", name)[:120]
@@ -753,6 +871,11 @@ class App(BaseHTTPRequestHandler):
             expense_id = int(parsed.path.split("/")[4])
             _, file = self.read_wedding_expense_payload()
             self.update_wedding_attachment(expense_id, file)
+        elif parsed.path == "/api/recurring/expenses":
+            self.create_recurring_expense(self.read_json())
+        elif parsed.path.startswith("/api/recurring/expenses/") and parsed.path.endswith("/toggle-paid"):
+            expense_id = int(parsed.path.split("/")[4])
+            self.toggle_recurring_paid(expense_id, self.read_json())
         else:
             self.send_error(404)
 
@@ -765,6 +888,9 @@ class App(BaseHTTPRequestHandler):
         elif parsed.path == "/api/wedding/budget":
             body = self.read_json()
             self.update_wedding_budget(body)
+        elif parsed.path.startswith("/api/recurring/expenses/"):
+            expense_id = int(parsed.path.rsplit("/", 1)[-1])
+            self.update_recurring_expense(expense_id, self.read_json())
         else:
             self.send_error(404)
 
@@ -780,6 +906,9 @@ class App(BaseHTTPRequestHandler):
         elif parsed.path.startswith("/api/wedding/expenses/"):
             expense_id = int(parsed.path.rsplit("/", 1)[-1])
             self.delete_wedding_expense(expense_id)
+        elif parsed.path.startswith("/api/recurring/expenses/"):
+            expense_id = int(parsed.path.rsplit("/", 1)[-1])
+            self.delete_recurring_expense(expense_id)
         else:
             self.send_error(404)
 
@@ -833,6 +962,9 @@ class App(BaseHTTPRequestHandler):
         elif path.startswith("/api/wedding/expenses/") and path.endswith("/attachment"):
             expense_id = int(path.split("/")[4])
             self.serve_wedding_attachment(expense_id)
+        elif path == "/api/recurring/state":
+            month = query.get("month", [datetime.now().strftime("%Y-%m")])[0]
+            self.send_json(build_recurring_state(month))
         else:
             self.send_error(404)
 
@@ -1035,6 +1167,96 @@ class App(BaseHTTPRequestHandler):
                 conn.execute("UPDATE imports SET action='Registrado' WHERE id=?", (row["id"],))
         month = rows[0]["date"][:7] if rows else None
         self.send_json({"ok": True, "count": len(rows), "month": month})
+
+    def recurring_values(self, body: dict) -> tuple:
+        name = (body.get("name", "").strip())[:90]
+        category = body.get("category") or "Otro"
+        account = body.get("account") or "Otro"
+        amount = float(body.get("amount") or 0)
+        frequency = body.get("frequency") or "Mensual"
+        next_due_date = body.get("nextDueDate") or None
+        active = 1 if str(body.get("active", "1")).lower() in ("1", "true", "activo", "on") else 0
+        if not name:
+            raise ValueError("Escribe el nombre del gasto")
+        if amount <= 0:
+            raise ValueError("El monto debe ser mayor a cero")
+        if frequency not in ("Mensual", "Anual"):
+            raise ValueError("La frecuencia debe ser mensual o anual")
+        if next_due_date:
+            next_due_date = normalize_date(next_due_date)
+        return name, category, account, amount, frequency, next_due_date, active
+
+    def create_recurring_expense(self, body: dict) -> None:
+        try:
+            values = self.recurring_values(body)
+        except ValueError as exc:
+            self.send_error(400, str(exc))
+            return
+        with db_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO recurring_expenses
+                (name, category, account, amount, frequency, next_due_date, active, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (*values, datetime.now().isoformat(timespec="seconds")),
+            )
+        self.send_json(build_recurring_state(body.get("month", "")), status=201)
+
+    def update_recurring_expense(self, expense_id: int, body: dict) -> None:
+        try:
+            values = self.recurring_values(body)
+        except ValueError as exc:
+            self.send_error(400, str(exc))
+            return
+        with db_connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE recurring_expenses
+                SET name=?, category=?, account=?, amount=?, frequency=?, next_due_date=?, active=?
+                WHERE id=?
+                """,
+                (*values, expense_id),
+            )
+        if cursor.rowcount == 0:
+            self.send_error(404, "Gasto recurrente no encontrado")
+            return
+        self.send_json(build_recurring_state(body.get("month", "")))
+
+    def toggle_recurring_paid(self, expense_id: int, body: dict) -> None:
+        month = body.get("month") or datetime.now().strftime("%Y-%m")
+        if not re.match(r"^\d{4}-\d{2}$", month):
+            self.send_error(400, "Mes invalido")
+            return
+        with db_connection() as conn:
+            exists = conn.execute(
+                "SELECT id FROM recurring_expenses WHERE id=?",
+                (expense_id,),
+            ).fetchone()
+            if not exists:
+                self.send_error(404, "Gasto recurrente no encontrado")
+                return
+            paid = conn.execute(
+                "SELECT id FROM recurring_payments WHERE recurring_expense_id=? AND month=?",
+                (expense_id, month),
+            ).fetchone()
+            if paid:
+                conn.execute("DELETE FROM recurring_payments WHERE id=?", (paid["id"],))
+            else:
+                conn.execute(
+                    "INSERT INTO recurring_payments (recurring_expense_id, month) VALUES (?, ?)",
+                    (expense_id, month),
+                )
+        self.send_json(build_recurring_state(month))
+
+    def delete_recurring_expense(self, expense_id: int) -> None:
+        with db_connection() as conn:
+            conn.execute("DELETE FROM recurring_payments WHERE recurring_expense_id=?", (expense_id,))
+            cursor = conn.execute("DELETE FROM recurring_expenses WHERE id=?", (expense_id,))
+        if cursor.rowcount == 0:
+            self.send_error(404, "Gasto recurrente no encontrado")
+            return
+        self.send_json({"ok": True})
 
     def update_wedding_budget(self, body: dict) -> None:
         budget = float(body.get("budget") or 0)

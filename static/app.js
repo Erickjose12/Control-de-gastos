@@ -15,6 +15,12 @@ const state = {
     expenses: [],
     categories: [],
   },
+  recurring: {
+    items: [],
+    categories: [],
+    accounts: [],
+    summary: {},
+  },
   exchangeRate: null,
   deleteTransactionId: null,
   deleteTransactionIds: [],
@@ -110,7 +116,7 @@ async function load() {
 }
 
 async function refreshAll() {
-  await Promise.all([loadImports(), loadDashboard(), loadWedding()]);
+  await Promise.all([loadImports(), loadDashboard(), loadWedding(), loadRecurring()]);
 }
 
 async function loadImports() {
@@ -127,6 +133,14 @@ async function loadDashboard() {
 async function loadWedding() {
   state.wedding = await api("/api/wedding/state");
   renderWedding();
+}
+
+async function loadRecurring() {
+  const month = $("monthInput").value;
+  state.recurring = await api(`/api/recurring/state?month=${encodeURIComponent(month)}`);
+  $("recurringCategory").innerHTML = optionList(state.recurring.categories, "Suscripciones");
+  $("recurringAccount").innerHTML = optionList(state.recurring.accounts, "Credito Cash");
+  renderRecurring();
 }
 
 function renderDashboard() {
@@ -217,6 +231,76 @@ function renderDashboard() {
           .join("");
   updateBulkDeleteState();
   renderSavingSales();
+}
+
+function recurringStatus(item) {
+  if (!item.active) return ["Inactivo", "muted-pill"];
+  if (!item.is_due) return [item.next_due_date ? "Programado" : "Sin fecha", "pill partial"];
+  if (item.paid) return ["Pagado", "pill paid"];
+  return ["Pendiente", "pill pending"];
+}
+
+function renderRecurring() {
+  const summary = state.recurring.summary || {};
+  const monthly = Number(summary.monthlyEquivalent || 0);
+  const provision = Number(summary.annualProvision || 0);
+  const paid = Number(summary.paidThisMonth || 0);
+  const pending = Number(summary.pendingThisMonth || 0);
+  $("recurringMonthlyKpi").textContent = fmtMoney.format(monthly);
+  $("recurringProvisionKpi").textContent = fmtMoney.format(provision);
+  $("recurringPaidKpi").textContent = fmtMoney.format(paid);
+  $("recurringPendingKpi").textContent = fmtMoney.format(pending);
+  $("recurringDashMonthly").textContent = fmtMoney.format(monthly);
+  $("recurringDashProvision").textContent = fmtMoney.format(provision);
+  $("recurringDashPaid").textContent = fmtMoney.format(paid);
+  $("recurringDashPending").textContent = fmtMoney.format(pending);
+
+  const query = normalizeSearch($("recurringSearch").value);
+  const rows = state.recurring.items || [];
+  const filtered = rows.filter((item) =>
+    matchesSearch(
+      [item.name, item.category, item.account, item.frequency, item.next_due_date || "", item.active ? "Activo" : "Inactivo"],
+      query,
+    ),
+  );
+  $("recurringBody").innerHTML =
+    rows.length === 0
+      ? `<tr><td class="empty" colspan="9">Aun no hay gastos recurrentes.</td></tr>`
+      : filtered.length === 0
+        ? `<tr><td class="empty" colspan="9">No hay gastos que coincidan con la busqueda.</td></tr>`
+        : filtered
+            .map((item) => {
+              const [statusText, statusClass] = recurringStatus(item);
+              const paidLabel = item.paid ? "Desmarcar pago" : "Marcar pagado";
+              return `
+                <tr data-recurring-id="${item.id}">
+                  <td><strong>${escapeHtml(item.name)}</strong></td>
+                  <td>${escapeHtml(item.category)}</td>
+                  <td>${escapeHtml(item.account)}</td>
+                  <td>${escapeHtml(item.frequency)}</td>
+                  <td class="money">${fmtMoney.format(item.amount)}</td>
+                  <td class="money">${fmtMoney.format(item.monthly_equivalent)}</td>
+                  <td>${escapeHtml(item.next_due_date || "Sin fecha")}</td>
+                  <td><span class="${statusClass}">${statusText}</span></td>
+                  <td class="actions-cell">
+                    <button class="table-action success-text" type="button" data-recurring-action="paid" ${item.is_due ? "" : "disabled"}>${paidLabel}</button>
+                    <button class="table-action" type="button" data-recurring-action="edit">Editar</button>
+                    <button class="table-action danger-text" type="button" data-recurring-action="delete">Eliminar</button>
+                  </td>
+                </tr>`;
+            })
+            .join("");
+}
+
+function resetRecurringForm() {
+  const form = $("recurringForm");
+  form.reset();
+  form.elements.id.value = "";
+  $("recurringCategory").innerHTML = optionList(state.recurring.categories, "Suscripciones");
+  $("recurringAccount").innerHTML = optionList(state.recurring.accounts, "Credito Cash");
+  $("recurringFormTitle").textContent = "Registrar gasto recurrente";
+  $("recurringSaveBtn").textContent = "Guardar gasto";
+  $("recurringCancelBtn").hidden = true;
 }
 
 function savingSaleRows() {
@@ -435,6 +519,7 @@ function setActiveView(viewId) {
   const titles = {
     summaryView: ["Dashboard", "Resumen mensual de ingresos, gastos y ahorro."],
     movementsView: ["Movimientos financieros", "Importa estados de cuenta, registra ajustes y revisa movimientos."],
+    recurringView: ["Gastos recurrentes", "Controla pagos mensuales, suscripciones y renovaciones anuales."],
     savingsView: ["Ahorro/Venta", "Seguimiento de ahorros y ventas USD registrados manualmente."],
     weddingView: ["Gastos de boda", "Presupuesto, abonos y proveedores del evento."],
   };
@@ -654,7 +739,71 @@ $("deleteSelectedBtn").addEventListener("click", askDeleteSelectedTransactions);
 $("importsSearch").addEventListener("input", renderImports);
 $("transactionsSearch").addEventListener("input", renderDashboard);
 $("savingSaleSearch").addEventListener("input", renderSavingSales);
+$("recurringSearch").addEventListener("input", renderRecurring);
 $("weddingSearch").addEventListener("input", renderWedding);
+
+$("recurringForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = Object.fromEntries(new FormData(form).entries());
+  const expenseId = data.id;
+  delete data.id;
+  data.month = $("monthInput").value;
+  $("recurringStatus").textContent = expenseId ? "Actualizando gasto..." : "Guardando gasto...";
+  try {
+    state.recurring = await api(expenseId ? `/api/recurring/expenses/${expenseId}` : "/api/recurring/expenses", {
+      method: expenseId ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    $("recurringStatus").textContent = expenseId ? "Gasto actualizado." : "Gasto recurrente guardado.";
+    resetRecurringForm();
+    renderRecurring();
+  } catch (error) {
+    $("recurringStatus").textContent = readableError(error);
+  }
+});
+
+$("recurringCancelBtn").addEventListener("click", () => {
+  resetRecurringForm();
+  $("recurringStatus").textContent = "";
+});
+
+$("recurringBody").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-recurring-action]");
+  if (!button) return;
+  const row = button.closest("tr[data-recurring-id]");
+  const expenseId = Number(row?.dataset.recurringId);
+  const item = state.recurring.items.find((entry) => Number(entry.id) === expenseId);
+  if (!item) return;
+  if (button.dataset.recurringAction === "paid") {
+    state.recurring = await api(`/api/recurring/expenses/${expenseId}/toggle-paid`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ month: $("monthInput").value }),
+    });
+    renderRecurring();
+  } else if (button.dataset.recurringAction === "edit") {
+    const form = $("recurringForm");
+    form.elements.id.value = item.id;
+    form.elements.name.value = item.name;
+    form.elements.category.innerHTML = optionList(state.recurring.categories, item.category);
+    form.elements.account.innerHTML = optionList(state.recurring.accounts, item.account);
+    form.elements.amount.value = item.amount;
+    form.elements.frequency.value = item.frequency;
+    form.elements.nextDueDate.value = item.next_due_date || "";
+    form.elements.active.value = item.active ? "1" : "0";
+    $("recurringFormTitle").textContent = "Editar gasto recurrente";
+    $("recurringSaveBtn").textContent = "Guardar cambios";
+    $("recurringCancelBtn").hidden = false;
+    $("recurringStatus").textContent = "";
+    form.scrollIntoView({ behavior: "smooth", block: "start" });
+  } else if (button.dataset.recurringAction === "delete") {
+    if (!window.confirm(`Eliminar "${item.name}" del control de gastos recurrentes?`)) return;
+    await api(`/api/recurring/expenses/${expenseId}`, { method: "DELETE" });
+    await loadRecurring();
+  }
+});
 
 $("savingSaleBody").addEventListener("click", (event) => {
   const button = event.target.closest("button[data-saving-action]");
@@ -804,6 +953,7 @@ document.querySelectorAll("[data-close-modal]").forEach((element) => {
 $("monthInput").addEventListener("change", () => {
   $("manualForm").elements.date.value = defaultDateForSelectedMonth();
   loadDashboard();
+  loadRecurring();
 });
 
 load().catch((error) => {

@@ -16,6 +16,7 @@
         <nav class="nav-menu" aria-label="Menu principal">
           <button class="nav-item active" type="button" data-view="summaryView">Dashboard</button>
           <button class="nav-item" type="button" data-view="movementsView">Movimientos financieros</button>
+          <button class="nav-item" type="button" data-view="recurringView">Gastos recurrentes</button>
           <button class="nav-item" type="button" data-view="savingsView">Ahorro/Venta</button>
           <button class="nav-item" type="button" data-view="weddingView">Gastos de boda</button>
         </nav>
@@ -74,6 +75,34 @@
                 </div>
               </div>
               <div id="accountSummary" class="account-summary"></div>
+            </section>
+          </section>
+
+          <section class="panel recurring-dashboard-card">
+            <div class="panel-head">
+              <div>
+                <h2>Gastos recurrentes</h2>
+                <p>Compromisos mensuales y provision para pagos anuales.</p>
+              </div>
+              <button class="ghost" type="button" data-view-shortcut="recurringView">Ver recurrentes</button>
+            </div>
+            <section class="kpis compact-kpis" aria-label="Resumen de gastos recurrentes">
+              <article class="kpi expense">
+                <span>Compromiso mensual</span>
+                <strong id="recurringDashMonthly">Q0.00</strong>
+              </article>
+              <article class="kpi rate">
+                <span>Provision anual</span>
+                <strong id="recurringDashProvision">Q0.00</strong>
+              </article>
+              <article class="kpi income">
+                <span>Pagado este mes</span>
+                <strong id="recurringDashPaid">Q0.00</strong>
+              </article>
+              <article class="kpi balance">
+                <span>Pendiente este mes</span>
+                <strong id="recurringDashPending">Q0.00</strong>
+              </article>
             </section>
           </section>
 
@@ -218,6 +247,122 @@
                   </tr>
                 </thead>
                 <tbody id="transactionsBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section id="recurringView" class="view-section">
+          <section class="kpis compact-kpis" aria-label="Resumen de gastos recurrentes">
+            <article class="kpi expense">
+              <span>Compromiso mensual</span>
+              <strong id="recurringMonthlyKpi">Q0.00</strong>
+            </article>
+            <article class="kpi rate">
+              <span>Provision para anuales</span>
+              <strong id="recurringProvisionKpi">Q0.00</strong>
+            </article>
+            <article class="kpi income">
+              <span>Pagado este mes</span>
+              <strong id="recurringPaidKpi">Q0.00</strong>
+            </article>
+            <article class="kpi balance">
+              <span>Pendiente este mes</span>
+              <strong id="recurringPendingKpi">Q0.00</strong>
+            </article>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2 id="recurringFormTitle">Registrar gasto recurrente</h2>
+                <p>Este control no crea movimientos bancarios ni duplica gastos reales.</p>
+              </div>
+            </div>
+            <form id="recurringForm" class="recurring-form">
+              <input name="id" type="hidden" />
+              <label>
+                Nombre
+                <input name="name" type="text" maxlength="90" placeholder="Ej. Internet residencial" required />
+              </label>
+              <label>
+                Categoria
+                <select id="recurringCategory" name="category"></select>
+              </label>
+              <label>
+                Metodo de pago
+                <select id="recurringAccount" name="account"></select>
+              </label>
+              <label>
+                Monto
+                <input name="amount" type="number" min="0.01" step="0.01" placeholder="0.00" required />
+              </label>
+              <label>
+                Frecuencia
+                <select name="frequency">
+                  <option>Mensual</option>
+                  <option>Anual</option>
+                </select>
+              </label>
+              <label>
+                Proxima fecha de cobro
+                <input name="nextDueDate" type="date" />
+              </label>
+              <label>
+                Estado
+                <select name="active">
+                  <option value="1">Activo</option>
+                  <option value="0">Inactivo</option>
+                </select>
+              </label>
+              <div class="recurring-form-actions">
+                <button id="recurringSaveBtn" class="primary" type="submit">Guardar gasto</button>
+                <button id="recurringCancelBtn" class="ghost" type="button" hidden>Cancelar edicion</button>
+              </div>
+              <p id="recurringStatus" class="status wide-field"></p>
+            </form>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Control del mes</h2>
+                <p>Los pagos anuales sin fecha solo aparecen como provision mensual.</p>
+              </div>
+            </div>
+            <div class="table-tools">
+              <label>
+                Buscar gasto recurrente
+                <input id="recurringSearch" type="search" placeholder="Nombre, categoria, metodo de pago, frecuencia..." />
+              </label>
+            </div>
+            <div class="table-wrap">
+              <table class="recurring-table">
+                <colgroup>
+                  <col class="recurring-col-name" />
+                  <col class="recurring-col-category" />
+                  <col class="recurring-col-account" />
+                  <col class="recurring-col-frequency" />
+                  <col class="recurring-col-money" />
+                  <col class="recurring-col-money" />
+                  <col class="recurring-col-date" />
+                  <col class="recurring-col-status" />
+                  <col class="recurring-col-actions" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Gasto</th>
+                    <th>Categoria</th>
+                    <th>Metodo</th>
+                    <th>Frecuencia</th>
+                    <th>Monto</th>
+                    <th>Mensual</th>
+                    <th>Proximo cobro</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="recurringBody"></tbody>
               </table>
             </div>
           </section>

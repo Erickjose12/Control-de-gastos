@@ -208,7 +208,8 @@ input[type="file"] {
   padding: 12px 14px;
 }
 
-.wedding-dashboard-card {
+.wedding-dashboard-card,
+.recurring-dashboard-card {
   margin-top: 16px;
 }
 
@@ -325,7 +326,9 @@ input[type="file"] {
 .budget-form input,
 .budget-form select,
 .wedding-form input,
-.wedding-form select {
+.wedding-form select,
+.recurring-form input,
+.recurring-form select {
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -358,7 +361,8 @@ input[type="file"] {
 }
 
 .budget-form,
-.wedding-form {
+.wedding-form,
+.recurring-form {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -366,7 +370,8 @@ input[type="file"] {
 }
 
 .budget-form label,
-.wedding-form label {
+.wedding-form label,
+.recurring-form label {
   color: var(--muted);
   display: grid;
   font-size: 12px;
@@ -387,6 +392,16 @@ input[type="file"] {
 .wedding-form .primary {
   justify-self: start;
   min-width: 160px;
+}
+
+.recurring-form-actions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.recurring-form-actions .primary {
+  min-width: 150px;
 }
 
 .pill {
@@ -532,6 +547,42 @@ table {
   min-width: 1260px;
 }
 
+.recurring-table {
+  min-width: 1080px;
+}
+
+.recurring-col-name {
+  width: 170px;
+}
+
+.recurring-col-category {
+  width: 120px;
+}
+
+.recurring-col-account {
+  width: 120px;
+}
+
+.recurring-col-frequency {
+  width: 90px;
+}
+
+.recurring-col-money {
+  width: 95px;
+}
+
+.recurring-col-date {
+  width: 110px;
+}
+
+.recurring-col-status {
+  width: 90px;
+}
+
+.recurring-col-actions {
+  width: 190px;
+}
+
 .wedding-col-date {
   width: 105px;
 }
@@ -673,6 +724,25 @@ td.money {
   margin-right: 4px;
   min-height: 26px;
   padding: 4px 6px;
+}
+
+.recurring-table th:nth-child(5),
+.recurring-table th:nth-child(6),
+.recurring-table td:nth-child(5),
+.recurring-table td:nth-child(6) {
+  text-align: right;
+}
+
+.recurring-table .table-action {
+  font-size: 11px;
+  margin-right: 4px;
+  margin-top: 3px;
+  min-height: 28px;
+  padding: 4px 7px;
+}
+
+.recurring-table .actions-cell {
+  white-space: normal;
 }
 
 .actions-cell {
@@ -1048,7 +1118,8 @@ td select {
   }
 
   .budget-form,
-  .wedding-form {
+  .wedding-form,
+  .recurring-form {
     grid-template-columns: 1fr;
   }
 
