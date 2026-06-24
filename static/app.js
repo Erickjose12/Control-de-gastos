@@ -749,18 +749,31 @@ $("recurringForm").addEventListener("submit", async (event) => {
   const expenseId = data.id;
   delete data.id;
   data.month = $("monthInput").value;
+  const saveButton = $("recurringSaveBtn");
+  const originalLabel = saveButton.textContent;
+  saveButton.disabled = true;
+  saveButton.textContent = expenseId ? "Guardando cambios..." : "Guardando...";
   $("recurringStatus").textContent = expenseId ? "Actualizando gasto..." : "Guardando gasto...";
   try {
-    state.recurring = await api(expenseId ? `/api/recurring/expenses/${expenseId}` : "/api/recurring/expenses", {
+    await api(expenseId ? `/api/recurring/expenses/${expenseId}` : "/api/recurring/expenses", {
       method: expenseId ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
-    $("recurringStatus").textContent = expenseId ? "Gasto actualizado." : "Gasto recurrente guardado.";
+    await loadRecurring();
     resetRecurringForm();
-    renderRecurring();
+    $("recurringStatus").textContent = expenseId
+      ? "Cambios guardados correctamente."
+      : "Gasto recurrente guardado.";
   } catch (error) {
-    $("recurringStatus").textContent = readableError(error);
+    $("recurringStatus").textContent = `No se pudo guardar: ${readableError(error)}`;
+  } finally {
+    saveButton.disabled = false;
+    if (form.elements.id.value) {
+      saveButton.textContent = "Guardar cambios";
+    } else {
+      saveButton.textContent = originalLabel === "Guardar cambios" ? "Guardar gasto" : originalLabel;
+    }
   }
 });
 
