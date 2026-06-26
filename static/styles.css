@@ -624,6 +624,17 @@ select:focus {
   min-width: 190px;
 }
 
+.import-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.import-actions .ghost {
+  min-height: 42px;
+}
+
 .manual-form {
   display: grid;
   gap: 12px;

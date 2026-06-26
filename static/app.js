@@ -587,6 +587,7 @@ function renderImportWorkflow(filteredCount = state.imports.length) {
     ? `${filteredCount} de ${state.imports.length} movimientos listos para guardar.`
     : "Selecciona el archivo para revisar los movimientos antes de guardarlos.";
   $("importSubmitBtn").textContent = hasFile ? "Revisar archivo" : "Selecciona un archivo";
+  $("cancelImportBtn").hidden = !hasFile && !hasImports;
 }
 
 function renderWedding() {
@@ -940,6 +941,16 @@ $("commitBtn").addEventListener("click", async () => {
   setActiveView("summaryView");
 });
 
+async function clearImportDraft(message = "Carga cancelada.") {
+  await api("/api/imports", { method: "DELETE" });
+  const form = $("importForm");
+  form.reset();
+  $("accountSelect").innerHTML = optionList(state.meta.accounts, "GYT - Cuenta ahorro sueldo");
+  syncSelectedFileName();
+  $("importStatus").textContent = message;
+  await loadImports();
+}
+
 $("themeToggle").addEventListener("click", () => {
   applyTheme(state.theme === "light" ? "dark" : "light");
 });
@@ -980,9 +991,11 @@ $("manualForm").addEventListener("submit", async (event) => {
 });
 
 $("clearImportsBtn").addEventListener("click", async () => {
-  await api("/api/imports", { method: "DELETE" });
-  $("importStatus").textContent = "Bandeja limpia.";
-  await loadImports();
+  await clearImportDraft("Bandeja limpia.");
+});
+
+$("cancelImportBtn").addEventListener("click", async () => {
+  await clearImportDraft();
 });
 
 $("transactionsBody").addEventListener("click", async (event) => {
