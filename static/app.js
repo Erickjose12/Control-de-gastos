@@ -824,7 +824,7 @@ $("importForm").addEventListener("submit", async (event) => {
     $("accountSelect").innerHTML = optionList(state.meta.accounts, "GYT - Cuenta ahorro sueldo");
     await loadImports();
   } catch (error) {
-    $("importStatus").textContent = "No se pudo importar el archivo.";
+    $("importStatus").textContent = error.message || "No se pudo importar el archivo.";
     console.error(error);
   }
 });

@@ -125,6 +125,8 @@ RECURRING_SAMPLE_EXPENSES = [
 
 DATE_RE = re.compile(r"^(\d{2}/\d{2}/\d{4})\s+(\d+)\s+(.*)$")
 AMOUNT_RE = re.compile(r"(-?Q[\d,]+\.\d{2})\s+(Q[\d,]+\.\d{2})$")
+PDF_DATE_RE = re.compile(r"\b(\d{4}-\d{2}-\d{2}|\d{2}/\d{2}/\d{4}|\d{2}-\d{2}-\d{4})\b")
+PDF_MONEY_RE = re.compile(r"-?\s*Q?\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})|-?\s*Q?\s*\d+\.\d{2}")
 
 
 def connect() -> sqlite3.Connection:
@@ -553,6 +555,103 @@ def parse_gyt_pdf(path: Path, source_name: str) -> list[dict]:
             }
         )
     return rows
+
+
+def extract_pdf_text(path: Path) -> str:
+    if PdfReader is None:
+        raise RuntimeError("pypdf no esta disponible")
+    reader = PdfReader(str(path))
+    return "\n".join(page.extract_text() or "" for page in reader.pages)
+
+
+def signed_amount_from_description(amount_text: str, description: str) -> float:
+    amount = money_to_number(amount_text)
+    if amount < 0:
+        return amount
+    desc = description.upper()
+    negative_tokens = (
+        "DEBITO",
+        "DÉBITO",
+        "RETIRO",
+        "COMPRA",
+        "CONSUMO",
+        "PAGO",
+        "CARGO",
+        "COMISION",
+        "COMISIÓN",
+    )
+    positive_tokens = (
+        "CREDITO",
+        "CRÉDITO",
+        "DEPOSITO",
+        "DEPÓSITO",
+        "ABONO",
+        "PLANILLA",
+        "TRANSFERENCIA RECIBIDA",
+    )
+    if any(token in desc for token in positive_tokens):
+        return amount
+    if any(token in desc for token in negative_tokens):
+        return -amount
+    return amount
+
+
+def parse_generic_pdf(path: Path, source_name: str, bank: str, product: str, account: str) -> list[dict]:
+    text = extract_pdf_text(path)
+    entries: list[str] = []
+    current = ""
+    for raw_line in text.splitlines():
+        line = " ".join(raw_line.strip().split())
+        if not line:
+            continue
+        if PDF_DATE_RE.search(line):
+            if current:
+                entries.append(current)
+            current = line
+        elif current:
+            current += " " + line
+    if current:
+        entries.append(current)
+
+    rows = []
+    for entry in entries:
+        date_match = PDF_DATE_RE.search(entry)
+        amounts = list(PDF_MONEY_RE.finditer(entry))
+        if not date_match or not amounts:
+            continue
+
+        amount_candidates = amounts[:-1] if len(amounts) > 1 else amounts
+        movement_match = next((match for match in amount_candidates if money_to_number(match.group()) != 0), amount_candidates[0])
+        balance_match = amounts[-1] if len(amounts) > 1 else None
+        description = entry[date_match.end() : movement_match.start()].strip(" -|")
+        description = re.sub(r"\s{2,}", " ", description) or "Movimiento importado"
+        signed_amount = signed_amount_from_description(movement_match.group(), description)
+        rows.append(
+            {
+                "source_name": source_name,
+                "bank": bank,
+                "product": product,
+                "account": account,
+                "document": "",
+                "date": normalize_date(date_match.group(1)),
+                "description": description[:120],
+                "suggested_type": suggest_type(description, signed_amount, product),
+                "suggested_category": suggest_category(description, signed_amount),
+                "amount": abs(signed_amount),
+                "balance": money_to_number(balance_match.group()) if balance_match else None,
+                "action": "Pendiente",
+                "notes": "Extraido de PDF",
+            }
+        )
+    return rows
+
+
+def parse_pdf_upload(path: Path, source_name: str, bank: str, product: str, account: str) -> list[dict]:
+    if bank.upper() == "GYT":
+        rows = parse_gyt_pdf(path, source_name)
+        if rows:
+            return rows
+    return parse_generic_pdf(path, source_name, bank, product, account)
 
 
 def parse_csv_upload(data: bytes, source_name: str, bank: str, product: str, account: str) -> list[dict]:
@@ -1000,11 +1099,17 @@ class App(BaseHTTPRequestHandler):
                 tmp.write(data)
                 tmp_path = Path(tmp.name)
             try:
-                rows = parse_gyt_pdf(tmp_path, name)
+                rows = parse_pdf_upload(tmp_path, name, bank, product, account)
             finally:
                 tmp_path.unlink(missing_ok=True)
         else:
             rows = parse_csv_upload(data, name, bank, product, account)
+        if not rows:
+            self.send_error(
+                422,
+                "No se detectaron movimientos en el archivo. Proba exportarlo como CSV o compartime el formato del PDF para ajustar el lector.",
+            )
+            return
         count = save_imports(rows)
         self.send_json({"ok": True, "count": count})
 
