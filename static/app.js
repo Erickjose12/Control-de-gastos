@@ -214,11 +214,8 @@ function renderDashboard() {
                   <span class="${tone}">${fmtMoney.format(item.net)}</span>
                 </div>
                 <div class="bank-summary-grid">
-                  <span><small>Ingresos</small>${fmtMoney.format(item.income || 0)}</span>
-                  <span><small>Gastos</small>${fmtMoney.format(item.expenses || 0)}</span>
-                  <span><small>Ahorros</small>${fmtMoney.format(item.savings || 0)}</span>
-                  <span><small>Ventas USD</small>${fmtMoney.format(item.usdSales || 0)}</span>
-                  <span><small>Transferencias</small>${fmtMoney.format(item.transfers || 0)}</span>
+                  <span class="income"><small>Ingresos</small>${fmtMoney.format(item.income || 0)}</span>
+                  <span class="expense"><small>Gastos</small>${fmtMoney.format(item.expenses || 0)}</span>
                 </div>
               </div>`;
           })

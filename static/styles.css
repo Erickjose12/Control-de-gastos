@@ -1275,6 +1275,16 @@ td select {
   padding: 8px 10px;
 }
 
+.bank-summary-grid .income {
+  border-color: rgba(22, 199, 154, 0.35);
+  color: var(--green);
+}
+
+.bank-summary-grid .expense {
+  border-color: rgba(255, 95, 104, 0.35);
+  color: var(--red);
+}
+
 .bank-summary-grid small {
   color: var(--muted);
   font-size: 10px;
