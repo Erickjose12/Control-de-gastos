@@ -635,7 +635,9 @@ def parse_gyt_credit_card_text(
         is_adjustment = "AJUSTE" in desc_upper
         is_credit = "CREDITO" in desc_upper and "DEBITO" not in desc_upper and not currency.startswith("-")
         signed_amount = amount if is_credit else -amount
-        tx_type = "Transferencia" if is_adjustment or signed_amount > 0 else "Gasto"
+        tx_type = "Ingreso" if signed_amount > 0 else "Gasto"
+        if not is_adjustment and any(token in desc_upper for token in ("PAGO TARJETA", "MASTER CARD", "VISA")):
+            tx_type = "Transferencia"
         category = "Pago tarjeta" if tx_type == "Transferencia" else suggest_category(description, signed_amount)
         notes = "Extraido de PDF tarjeta GYT"
         display_description = f"{description} {currency}"
