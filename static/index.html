@@ -482,7 +482,7 @@
           <section class="report-toolbar">
             <div>
               <h2>Lectura del mes seleccionado</h2>
-              <p>Comparacion de movimientos reales y compromisos recurrentes.</p>
+              <p>Movimientos, ahorro/venta, recurrentes y gastos de boda.</p>
             </div>
             <button id="exportReportBtn" class="ghost" type="button">Exportar CSV</button>
           </section>
@@ -554,6 +554,46 @@
               </div>
               <div id="reportAccountFlow" class="report-breakdown"></div>
             </section>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Gastos de boda del mes</h2>
+                <p>Presupuesto comprometido, abonado y pendiente de los registros del mes.</p>
+              </div>
+              <span id="reportWeddingCount" class="report-change">0 registros</span>
+            </div>
+            <section class="kpis compact-kpis report-wedding-kpis" aria-label="Resumen de gastos de boda">
+              <article class="kpi expense">
+                <span>Total comprometido</span>
+                <strong id="reportWeddingTotal">Q0.00</strong>
+              </article>
+              <article class="kpi income">
+                <span>Abonado</span>
+                <strong id="reportWeddingPaid">Q0.00</strong>
+              </article>
+              <article class="kpi rate">
+                <span>Pendiente</span>
+                <strong id="reportWeddingPending">Q0.00</strong>
+              </article>
+            </section>
+            <div class="table-wrap">
+              <table class="report-wedding-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Concepto</th>
+                    <th>Categoria</th>
+                    <th>Proveedor</th>
+                    <th>Total</th>
+                    <th>Abonado</th>
+                    <th>Pendiente</th>
+                  </tr>
+                </thead>
+                <tbody id="reportWeddingExpenses"></tbody>
+              </table>
+            </div>
           </section>
 
           <section class="panel">
