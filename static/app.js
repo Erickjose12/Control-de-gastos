@@ -751,6 +751,7 @@ function guessBankFromFileName(fileName) {
   const name = normalizeSearch(fileName);
   if (name.includes("banrural")) return "Banrural";
   if (name.includes("bac")) return "BAC";
+  if (name.includes("banco industrial") || /\bbi\b/.test(name)) return "Banco Industrial";
   if (name.includes("gyt") || name.includes("g&t") || name.includes("continental")) return "GYT";
   return "";
 }
@@ -760,6 +761,7 @@ function updateImportAccountForBank() {
   const preferred = {
     Banrural: "Banrural - Cuenta ahorro",
     BAC: "BAC - Cuenta ahorro USD",
+    "Banco Industrial": "Banco Industrial - Cuenta ahorro",
     GYT: "GYT - Cuenta ahorro sueldo",
   }[bank];
   if (preferred) {

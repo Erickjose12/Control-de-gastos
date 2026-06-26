@@ -35,6 +35,7 @@ ACCOUNTS = [
     "GYT - Tarjeta credito",
     "BAC - Cuenta ahorro USD",
     "Banrural - Cuenta ahorro",
+    "Banco Industrial - Cuenta ahorro",
     "Efectivo",
     "Otro banco",
     "Otro",
@@ -306,6 +307,41 @@ def migrate_existing_data(conn: sqlite3.Connection) -> None:
         WHERE description LIKE '%BAM%'
         """
     )
+    migrate_import_bank_accounts(conn)
+
+
+def bank_from_source_name(source_name: str) -> str:
+    name = source_name.upper()
+    if "BANRURAL" in name or name.startswith("MOVS_"):
+        return "Banrural"
+    if "BANCO INDUSTRIAL" in name or re.search(r"(^|[-_\s])BI($|[-_\s.])", name):
+        return "Banco Industrial"
+    if "BAC" in name:
+        return "BAC"
+    if "GYT" in name or "G&T" in name or "CONTINENTAL" in name:
+        return "GYT"
+    return ""
+
+
+def migrate_import_bank_accounts(conn: sqlite3.Connection) -> None:
+    for row in conn.execute("SELECT id, source_name FROM imports").fetchall():
+        detected_bank = bank_from_source_name(row["source_name"])
+        if not detected_bank:
+            continue
+        account = account_for_bank(detected_bank, "GYT - Cuenta ahorro sueldo")
+        product = infer_product(account)
+        conn.execute(
+            "UPDATE imports SET bank=?, product=?, account=? WHERE id=?",
+            (detected_bank, product, account, row["id"]),
+        )
+        conn.execute(
+            """
+            UPDATE transactions
+            SET account=?
+            WHERE source_import_id=?
+            """,
+            (account, row["id"]),
+        )
 
 
 def migrate_wedding_data(conn: sqlite3.Connection) -> None:
@@ -438,7 +474,22 @@ def infer_product(account: str) -> str:
         return "Cuenta ahorro USD"
     if "BANRURAL" in account_upper:
         return "Cuenta ahorro Banrural"
+    if "BANCO INDUSTRIAL" in account_upper:
+        return "Cuenta ahorro Banco Industrial"
     return "Cuenta ahorro / debito"
+
+
+def account_for_bank(bank: str, fallback: str = "GYT - Cuenta ahorro sueldo") -> str:
+    bank_upper = bank.upper()
+    if "BANRURAL" in bank_upper:
+        return "Banrural - Cuenta ahorro"
+    if "INDUSTRIAL" in bank_upper or bank_upper == "BI":
+        return "Banco Industrial - Cuenta ahorro"
+    if "BAC" in bank_upper:
+        return "BAC - Cuenta ahorro USD"
+    if "GYT" in bank_upper or "G&T" in bank_upper:
+        return "GYT - Cuenta ahorro sueldo"
+    return fallback
 
 
 def suggest_category(description: str, amount: float) -> str:
@@ -564,6 +615,47 @@ def extract_pdf_text(path: Path) -> str:
     return "\n".join(page.extract_text() or "" for page in reader.pages)
 
 
+def detect_pdf_bank(path: Path, source_name: str) -> str:
+    name = source_name.upper()
+    if "BANRURAL" in name:
+        return "Banrural"
+    if "BAC" in name:
+        return "BAC"
+    if "INDUSTRIAL" in name or re.search(r"(^|[-_\s])BI($|[-_\s.])", name):
+        return "Banco Industrial"
+    if "GYT" in name or "G&T" in name:
+        return "GYT"
+
+    text = extract_pdf_text(path).upper()
+    if "BANCO INDUSTRIAL" in text:
+        return "Banco Industrial"
+    if "BANRURAL" in text or "MOVIMIENTOS DE LA CUENTA" in text:
+        return "Banrural"
+    if "G&T" in text or "MONETARIO QTZ" in text or "NOMBRE CUENTA:" in text:
+        return "GYT"
+    if "BAC" in text:
+        return "BAC"
+    return ""
+
+
+def pdf_entries_by_date(text: str) -> list[str]:
+    entries: list[str] = []
+    current = ""
+    for raw_line in text.splitlines():
+        line = " ".join(raw_line.strip().split())
+        if not line:
+            continue
+        if PDF_DATE_RE.search(line):
+            if current:
+                entries.append(current)
+            current = line
+        elif current:
+            current += " " + line
+    if current:
+        entries.append(current)
+    return entries
+
+
 def signed_amount_from_description(amount_text: str, description: str) -> float:
     amount = money_to_number(amount_text)
     if amount < 0:
@@ -596,36 +688,113 @@ def signed_amount_from_description(amount_text: str, description: str) -> float:
     return amount
 
 
-def parse_generic_pdf(path: Path, source_name: str, bank: str, product: str, account: str) -> list[dict]:
+def parse_banrural_pdf(path: Path, source_name: str, account: str) -> list[dict]:
     text = extract_pdf_text(path)
-    entries: list[str] = []
-    current = ""
-    for raw_line in text.splitlines():
-        line = " ".join(raw_line.strip().split())
-        if not line:
+    rows = []
+    for entry in pdf_entries_by_date(text):
+        date_match = PDF_DATE_RE.search(entry)
+        amounts = list(PDF_MONEY_RE.finditer(entry))
+        if not date_match or len(amounts) < 4:
             continue
-        if PDF_DATE_RE.search(line):
-            if current:
-                entries.append(current)
-            current = line
-        elif current:
-            current += " " + line
-    if current:
-        entries.append(current)
+
+        debit_match, credit_match, balance_match = amounts[-4], amounts[-3], amounts[-2]
+        debit = money_to_number(debit_match.group())
+        credit = money_to_number(credit_match.group())
+        if debit == 0 and credit == 0:
+            continue
+        signed_amount = credit if credit > 0 else -abs(debit)
+        description = entry[date_match.end() : debit_match.start()].strip(" -|")
+        description = re.sub(r"\s{2,}", " ", description) or "Movimiento Banrural"
+        rows.append(
+            {
+                "source_name": source_name,
+                "bank": "Banrural",
+                "product": "Cuenta ahorro Banrural",
+                "account": account,
+                "document": "",
+                "date": normalize_date(date_match.group(1)),
+                "description": description[:120],
+                "suggested_type": suggest_type(description, signed_amount, "Cuenta ahorro Banrural"),
+                "suggested_category": suggest_category(description, signed_amount),
+                "amount": abs(signed_amount),
+                "balance": money_to_number(balance_match.group()),
+                "action": "Pendiente",
+                "notes": "Extraido de PDF Banrural",
+            }
+        )
+    return rows
+
+
+def parse_bi_pdf(path: Path, source_name: str, account: str) -> list[dict]:
+    text = extract_pdf_text(path)
+    previous_balance = None
+    previous_match = re.search(r"SALDO ANTERIOR\*+\s*([\d,]+\.\d{2})", text, re.IGNORECASE)
+    if previous_match:
+        previous_balance = money_to_number(previous_match.group(1))
 
     rows = []
-    for entry in entries:
+    for entry in pdf_entries_by_date(text):
         date_match = PDF_DATE_RE.search(entry)
         amounts = list(PDF_MONEY_RE.finditer(entry))
         if not date_match or not amounts:
             continue
 
-        amount_candidates = amounts[:-1] if len(amounts) > 1 else amounts
-        movement_match = next((match for match in amount_candidates if money_to_number(match.group()) != 0), amount_candidates[0])
-        balance_match = amounts[-1] if len(amounts) > 1 else None
+        balance_match = amounts[1] if len(amounts) > 1 else amounts[0]
+        balance = money_to_number(balance_match.group())
+        if previous_balance is not None:
+            signed_amount = round(balance - previous_balance, 2)
+        else:
+            movement_match = amounts[0]
+            signed_amount = signed_amount_from_description(movement_match.group(), entry)
+        previous_balance = balance
+        if signed_amount == 0:
+            continue
+
+        movement_start = amounts[0].start()
+        description = entry[date_match.end() : movement_start].strip(" -|")
+        description = re.sub(r"\s{2,}", " ", description) or "Movimiento Banco Industrial"
+        rows.append(
+            {
+                "source_name": source_name,
+                "bank": "Banco Industrial",
+                "product": "Cuenta ahorro Banco Industrial",
+                "account": account,
+                "document": "",
+                "date": normalize_date(date_match.group(1)),
+                "description": description[:120],
+                "suggested_type": suggest_type(description, signed_amount, "Cuenta ahorro Banco Industrial"),
+                "suggested_category": suggest_category(description, signed_amount),
+                "amount": abs(signed_amount),
+                "balance": balance,
+                "action": "Pendiente",
+                "notes": "Extraido de PDF Banco Industrial",
+            }
+        )
+    return rows
+
+
+def parse_generic_pdf(path: Path, source_name: str, bank: str, product: str, account: str) -> list[dict]:
+    text = extract_pdf_text(path)
+    rows = []
+    for entry in pdf_entries_by_date(text):
+        date_match = PDF_DATE_RE.search(entry)
+        amounts = list(PDF_MONEY_RE.finditer(entry))
+        if not date_match or not amounts:
+            continue
+
+        if len(amounts) >= 4:
+            debit_match, credit_match, balance_match = amounts[-4], amounts[-3], amounts[-2]
+            debit = money_to_number(debit_match.group())
+            credit = money_to_number(credit_match.group())
+            movement_match = credit_match if credit else debit_match
+            signed_amount = credit if credit else -abs(debit)
+        else:
+            amount_candidates = amounts[:-1] if len(amounts) > 1 else amounts
+            movement_match = next((match for match in amount_candidates if money_to_number(match.group()) != 0), amount_candidates[0])
+            balance_match = amounts[-1] if len(amounts) > 1 else None
+            signed_amount = signed_amount_from_description(movement_match.group(), entry)
         description = entry[date_match.end() : movement_match.start()].strip(" -|")
         description = re.sub(r"\s{2,}", " ", description) or "Movimiento importado"
-        signed_amount = signed_amount_from_description(movement_match.group(), description)
         rows.append(
             {
                 "source_name": source_name,
@@ -647,11 +816,19 @@ def parse_generic_pdf(path: Path, source_name: str, bank: str, product: str, acc
 
 
 def parse_pdf_upload(path: Path, source_name: str, bank: str, product: str, account: str) -> list[dict]:
-    if bank.upper() == "GYT":
+    detected_bank = detect_pdf_bank(path, source_name) or bank
+    detected_account = account_for_bank(detected_bank, account)
+    detected_product = infer_product(detected_account) if detected_account != account else product
+
+    if detected_bank.upper() == "BANRURAL":
+        return parse_banrural_pdf(path, source_name, detected_account)
+    if "INDUSTRIAL" in detected_bank.upper():
+        return parse_bi_pdf(path, source_name, detected_account)
+    if detected_bank.upper() == "GYT":
         rows = parse_gyt_pdf(path, source_name)
         if rows:
             return rows
-    return parse_generic_pdf(path, source_name, bank, product, account)
+    return parse_generic_pdf(path, source_name, detected_bank, detected_product, detected_account)
 
 
 def parse_csv_upload(data: bytes, source_name: str, bank: str, product: str, account: str) -> list[dict]:
