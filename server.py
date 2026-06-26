@@ -126,6 +126,7 @@ RECURRING_SAMPLE_EXPENSES = [
 
 DATE_RE = re.compile(r"^(\d{2}/\d{2}/\d{4})\s+(\d+)\s+(.*)$")
 AMOUNT_RE = re.compile(r"(-?Q[\d,]+\.\d{2})\s+(Q[\d,]+\.\d{2})$")
+CARD_ENTRY_RE = re.compile(r"^(\d{2}/\d{2}/\d{4})\s+(\S+)\s+(.*?)\s+(-?(?:QTZ|DOL))\s+([\d,]+\.\d{2})$")
 PDF_DATE_RE = re.compile(r"\b(\d{4}-\d{2}-\d{2}|\d{2}/\d{2}/\d{4}|\d{2}-\d{2}-\d{4})\b")
 PDF_MONEY_RE = re.compile(r"-?\s*Q?\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})|-?\s*Q?\s*\d+\.\d{2}")
 
@@ -554,6 +555,10 @@ def parse_gyt_pdf(path: Path, source_name: str) -> list[dict]:
         raise RuntimeError("pypdf no esta disponible")
 
     reader = PdfReader(str(path))
+    full_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+    if "Cuenta: TCR" in full_text:
+        return parse_gyt_credit_card_text(full_text, source_name)
+
     raw_entries: list[str] = []
     current = ""
     for page in reader.pages:
@@ -603,6 +608,46 @@ def parse_gyt_pdf(path: Path, source_name: str) -> list[dict]:
                 "balance": money_to_number(saldo_text),
                 "action": "Pendiente",
                 "notes": "Extraido de PDF",
+            }
+        )
+    return rows
+
+
+def parse_gyt_credit_card_text(text: str, source_name: str) -> list[dict]:
+    rows = []
+    for raw_line in text.splitlines():
+        line = " ".join(raw_line.strip().split())
+        if not line or line in {"1", "1 2", "1 2 3"}:
+            continue
+        match = CARD_ENTRY_RE.match(line)
+        if not match:
+            continue
+        fecha, doc, description, currency, amount_text = match.groups()
+        amount = money_to_number(amount_text)
+        desc_upper = description.upper()
+        is_adjustment = "AJUSTE" in desc_upper
+        is_credit = "CREDITO" in desc_upper and "DEBITO" not in desc_upper and not currency.startswith("-")
+        signed_amount = amount if is_credit else -amount
+        tx_type = "Transferencia" if is_adjustment or signed_amount > 0 else "Gasto"
+        category = "Pago tarjeta" if tx_type == "Transferencia" else suggest_category(description, signed_amount)
+        notes = "Extraido de PDF tarjeta GYT"
+        if currency.endswith("DOL"):
+            notes += " - monto original en USD, validar tipo de cambio"
+        rows.append(
+            {
+                "source_name": source_name,
+                "bank": "GYT",
+                "product": "Tarjeta de credito",
+                "account": "GYT - Tarjeta credito",
+                "document": doc,
+                "date": normalize_date(fecha),
+                "description": f"{description} {currency}"[:120],
+                "suggested_type": tx_type,
+                "suggested_category": category,
+                "amount": abs(signed_amount),
+                "balance": None,
+                "action": "Pendiente",
+                "notes": notes,
             }
         )
     return rows
@@ -884,19 +929,32 @@ def first(data: dict, *keys: str) -> str:
 
 def save_imports(rows: list[dict]) -> int:
     now = datetime.now().isoformat(timespec="seconds")
+    inserted = 0
     with db_connection() as conn:
-        conn.executemany(
-            """
-            INSERT INTO imports
-            (source_name, bank, product, account, document, date, description, suggested_type,
-             suggested_category, amount, balance, action, notes, created_at)
-            VALUES
-            (:source_name, :bank, :product, :account, :document, :date, :description,
-             :suggested_type, :suggested_category, :amount, :balance, :action, :notes, :created_at)
-            """,
-            [{**row, "created_at": now} for row in rows],
-        )
-    return len(rows)
+        for row in rows:
+            exists = conn.execute(
+                """
+                SELECT 1 FROM imports
+                WHERE source_name=? AND date=? AND account=? AND description=? AND amount=?
+                LIMIT 1
+                """,
+                (row["source_name"], row["date"], row["account"], row["description"], row["amount"]),
+            ).fetchone()
+            if exists:
+                continue
+            conn.execute(
+                """
+                INSERT INTO imports
+                (source_name, bank, product, account, document, date, description, suggested_type,
+                 suggested_category, amount, balance, action, notes, created_at)
+                VALUES
+                (:source_name, :bank, :product, :account, :document, :date, :description,
+                 :suggested_type, :suggested_category, :amount, :balance, :action, :notes, :created_at)
+                """,
+                {**row, "created_at": now},
+            )
+            inserted += 1
+    return inserted
 
 
 def rowdict(row: sqlite3.Row) -> dict:
@@ -1444,6 +1502,24 @@ class App(BaseHTTPRequestHandler):
             ).fetchall()
             for row in rows:
                 tx_type = row["suggested_type"]
+                exists = conn.execute(
+                    """
+                    SELECT 1 FROM transactions
+                    WHERE date=? AND type=? AND category=? AND account=? AND description=? AND amount=?
+                    LIMIT 1
+                    """,
+                    (
+                        row["date"],
+                        tx_type,
+                        row["suggested_category"],
+                        row["account"],
+                        row["description"],
+                        row["amount"],
+                    ),
+                ).fetchone()
+                if exists:
+                    conn.execute("UPDATE imports SET action='Registrado' WHERE id=?", (row["id"],))
+                    continue
                 conn.execute(
                     """
                     INSERT INTO transactions
