@@ -27,6 +27,7 @@ DB = DATA / "finanzas.db"
 WEDDING_FILES = DATA / "wedding_files"
 TRANSACTION_FILES = DATA / "transaction_files"
 EXCHANGE_RATE_URL = "https://open.er-api.com/v6/latest/USD"
+DEFAULT_USD_GTQ_RATE = 7.8
 LEGACY_WEDDING_DB = ROOT.parent / "Control-de-gastos-de-boda" / "data" / "boda.db"
 
 ACCOUNTS = [
@@ -550,14 +551,14 @@ def default_category_for_type(tx_type: str, account: str = "") -> str:
     return "Otros gastos"
 
 
-def parse_gyt_pdf(path: Path, source_name: str) -> list[dict]:
+def parse_gyt_pdf(path: Path, source_name: str, exchange_rate: float = DEFAULT_USD_GTQ_RATE) -> list[dict]:
     if PdfReader is None:
         raise RuntimeError("pypdf no esta disponible")
 
     reader = PdfReader(str(path))
     full_text = "\n".join(page.extract_text() or "" for page in reader.pages)
     if "Cuenta: TCR" in full_text:
-        return parse_gyt_credit_card_text(full_text, source_name)
+        return parse_gyt_credit_card_text(full_text, source_name, exchange_rate)
 
     raw_entries: list[str] = []
     current = ""
@@ -613,7 +614,11 @@ def parse_gyt_pdf(path: Path, source_name: str) -> list[dict]:
     return rows
 
 
-def parse_gyt_credit_card_text(text: str, source_name: str) -> list[dict]:
+def parse_gyt_credit_card_text(
+    text: str,
+    source_name: str,
+    exchange_rate: float = DEFAULT_USD_GTQ_RATE,
+) -> list[dict]:
     rows = []
     for raw_line in text.splitlines():
         line = " ".join(raw_line.strip().split())
@@ -623,7 +628,9 @@ def parse_gyt_credit_card_text(text: str, source_name: str) -> list[dict]:
         if not match:
             continue
         fecha, doc, description, currency, amount_text = match.groups()
-        amount = money_to_number(amount_text)
+        original_amount = money_to_number(amount_text)
+        is_usd = currency.endswith("DOL")
+        amount = round(original_amount * exchange_rate, 2) if is_usd else original_amount
         desc_upper = description.upper()
         is_adjustment = "AJUSTE" in desc_upper
         is_credit = "CREDITO" in desc_upper and "DEBITO" not in desc_upper and not currency.startswith("-")
@@ -631,8 +638,10 @@ def parse_gyt_credit_card_text(text: str, source_name: str) -> list[dict]:
         tx_type = "Transferencia" if is_adjustment or signed_amount > 0 else "Gasto"
         category = "Pago tarjeta" if tx_type == "Transferencia" else suggest_category(description, signed_amount)
         notes = "Extraido de PDF tarjeta GYT"
-        if currency.endswith("DOL"):
-            notes += " - monto original en USD, validar tipo de cambio"
+        display_description = f"{description} {currency}"
+        if is_usd:
+            display_description = f"{description} {currency} {original_amount:.2f} (TC {exchange_rate:.4f})"
+            notes += f" - USD {original_amount:.2f} convertido a GTQ con TC {exchange_rate:.4f}"
         rows.append(
             {
                 "source_name": source_name,
@@ -641,7 +650,7 @@ def parse_gyt_credit_card_text(text: str, source_name: str) -> list[dict]:
                 "account": "GYT - Tarjeta credito",
                 "document": doc,
                 "date": normalize_date(fecha),
-                "description": f"{description} {currency}"[:120],
+                "description": display_description[:120],
                 "suggested_type": tx_type,
                 "suggested_category": category,
                 "amount": abs(signed_amount),
@@ -860,7 +869,14 @@ def parse_generic_pdf(path: Path, source_name: str, bank: str, product: str, acc
     return rows
 
 
-def parse_pdf_upload(path: Path, source_name: str, bank: str, product: str, account: str) -> list[dict]:
+def parse_pdf_upload(
+    path: Path,
+    source_name: str,
+    bank: str,
+    product: str,
+    account: str,
+    exchange_rate: float = DEFAULT_USD_GTQ_RATE,
+) -> list[dict]:
     detected_bank = detect_pdf_bank(path, source_name) or bank
     detected_account = account_for_bank(detected_bank, account)
     detected_product = infer_product(detected_account) if detected_account != account else product
@@ -870,7 +886,7 @@ def parse_pdf_upload(path: Path, source_name: str, bank: str, product: str, acco
     if "INDUSTRIAL" in detected_bank.upper():
         return parse_bi_pdf(path, source_name, detected_account)
     if detected_bank.upper() == "GYT":
-        rows = parse_gyt_pdf(path, source_name)
+        rows = parse_gyt_pdf(path, source_name, exchange_rate)
         if rows:
             return rows
     return parse_generic_pdf(path, source_name, detected_bank, detected_product, detected_account)
@@ -1322,6 +1338,12 @@ class App(BaseHTTPRequestHandler):
         bank = fields.get("bank", "GYT")
         account = fields.get("account", "GYT - Cuenta ahorro sueldo")
         product = fields.get("product") or infer_product(account)
+        try:
+            exchange_rate = float(fields.get("exchangeRate") or DEFAULT_USD_GTQ_RATE)
+        except (TypeError, ValueError):
+            exchange_rate = DEFAULT_USD_GTQ_RATE
+        if exchange_rate <= 0:
+            exchange_rate = DEFAULT_USD_GTQ_RATE
         if "file" not in files:
             self.send_error(400, "Falta archivo")
             return
@@ -1334,7 +1356,7 @@ class App(BaseHTTPRequestHandler):
                 tmp.write(data)
                 tmp_path = Path(tmp.name)
             try:
-                rows = parse_pdf_upload(tmp_path, name, bank, product, account)
+                rows = parse_pdf_upload(tmp_path, name, bank, product, account, exchange_rate)
             finally:
                 tmp_path.unlink(missing_ok=True)
         else:

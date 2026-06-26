@@ -591,6 +591,10 @@ select:focus {
   padding: 6px 12px;
 }
 
+.import-rate-field {
+  max-width: 260px;
+}
+
 .import-detected-card {
   align-items: end;
   background: var(--panel-raised);
