@@ -974,6 +974,12 @@ class App(BaseHTTPRequestHandler):
         elif path == "/api/recurring/state":
             month = query.get("month", [datetime.now().strftime("%Y-%m")])[0]
             self.send_json(build_recurring_state(month))
+        elif path == "/api/reports":
+            month = query.get("month", [datetime.now().strftime("%Y-%m")])[0]
+            self.send_json(build_reports(month))
+        elif path == "/api/reports/export":
+            month = query.get("month", [datetime.now().strftime("%Y-%m")])[0]
+            self.serve_report_csv(month)
         else:
             self.send_error(404)
 
@@ -1496,6 +1502,46 @@ class App(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(file_path.read_bytes())
 
+    def serve_report_csv(self, month: str) -> None:
+        report = build_reports(month)
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["Reporte financiero", report["month"]])
+        writer.writerow([])
+        writer.writerow(["Resumen", "Monto Q"])
+        writer.writerow(["Ingresos", report["summary"]["income"]])
+        writer.writerow(["Gastos", report["summary"]["expenses"]])
+        writer.writerow(["Ahorro", report["summary"]["savings"]])
+        writer.writerow(["Resultado", report["summary"]["balance"]])
+        writer.writerow([])
+        writer.writerow(["Comparacion mensual", "Ingresos", "Gastos", "Ahorro", "Resultado"])
+        for row in report["trend"]:
+            writer.writerow(
+                [row["month"], row["income"], row["expenses"], row["savings"], row["balance"]]
+            )
+        writer.writerow([])
+        writer.writerow(["Gastos por categoria", "Monto Q"])
+        writer.writerows(report["byCategory"])
+        writer.writerow([])
+        writer.writerow(["Metodos de pago recurrentes", "Mensual equivalente Q"])
+        writer.writerows(report["byPaymentMethod"])
+        writer.writerow([])
+        writer.writerow(["Gastos principales", "Fecha", "Categoria", "Cuenta", "Monto Q"])
+        for row in report["topExpenses"]:
+            writer.writerow(
+                [row["description"], row["date"], row["category"], row["account"], row["amount"]]
+            )
+        payload = ("\ufeff" + output.getvalue()).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/csv; charset=utf-8")
+        self.send_header(
+            "Content-Disposition",
+            f'attachment; filename="reporte-financiero-{report["month"]}.csv"',
+        )
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
     def serve_static(self, path: str) -> None:
         file_path = STATIC / ("index.html" if path in ("", "/") else path.lstrip("/"))
         if not file_path.exists() or not file_path.is_file():
@@ -1585,6 +1631,112 @@ def build_dashboard(month: str) -> dict:
         "byCategory": sorted(by_category.items(), key=lambda x: x[1], reverse=True),
         "byAccount": sorted(by_account.items(), key=lambda x: x[0]),
         "transactions": [rowdict(row) for row in txs],
+    }
+
+
+def month_sequence(end_month: str, count: int = 6) -> list[str]:
+    if not re.match(r"^\d{4}-\d{2}$", end_month or ""):
+        end_month = datetime.now().strftime("%Y-%m")
+    year, month = map(int, end_month.split("-"))
+    months = []
+    for offset in range(count - 1, -1, -1):
+        absolute = year * 12 + (month - 1) - offset
+        item_year, item_month = divmod(absolute, 12)
+        months.append(f"{item_year:04d}-{item_month + 1:02d}")
+    return months
+
+
+def build_reports(month: str) -> dict:
+    months = month_sequence(month, 6)
+    first_month = months[0]
+    last_month = months[-1]
+    with db_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM transactions
+            WHERE substr(date,1,7) BETWEEN ? AND ?
+            ORDER BY date, id
+            """,
+            (first_month, last_month),
+        ).fetchall()
+        recurring_rows = conn.execute(
+            """
+            SELECT account, amount, frequency
+            FROM recurring_expenses
+            WHERE active=1
+            """
+        ).fetchall()
+
+    trend = []
+    for item_month in months:
+        month_rows = [row for row in rows if row["date"][:7] == item_month]
+        income = sum(
+            row["amount"] for row in month_rows if row["type"] in ("Ingreso", "Venta USD")
+        )
+        expenses = sum(row["amount"] for row in month_rows if row["type"] == "Gasto")
+        savings = sum(row["amount"] for row in month_rows if row["type"] == "Ahorro")
+        trend.append(
+            {
+                "month": item_month,
+                "income": round(income, 2),
+                "expenses": round(expenses, 2),
+                "savings": round(savings, 2),
+                "balance": round(income - expenses - savings, 2),
+            }
+        )
+
+    selected_rows = [row for row in rows if row["date"][:7] == last_month]
+    by_category: dict[str, float] = {}
+    by_account: dict[str, float] = {}
+    for row in selected_rows:
+        if row["type"] == "Gasto":
+            by_category[row["category"]] = by_category.get(row["category"], 0) + row["amount"]
+        delta = row["amount"] if row["type"] in ("Ingreso", "Venta USD", "Ahorro") else -row["amount"]
+        by_account[row["account"]] = by_account.get(row["account"], 0) + delta
+
+    by_payment_method: dict[str, float] = {}
+    for row in recurring_rows:
+        equivalent = row["amount"] if row["frequency"] == "Mensual" else row["amount"] / 12
+        by_payment_method[row["account"]] = by_payment_method.get(row["account"], 0) + equivalent
+
+    selected = trend[-1]
+    previous = trend[-2] if len(trend) > 1 else {"expenses": 0}
+    expense_change = (
+        (selected["expenses"] - previous["expenses"]) / previous["expenses"]
+        if previous["expenses"]
+        else 0
+    )
+    top_expenses = sorted(
+        [
+            {
+                "date": row["date"],
+                "description": row["description"],
+                "category": row["category"],
+                "account": row["account"],
+                "amount": row["amount"],
+            }
+            for row in selected_rows
+            if row["type"] == "Gasto"
+        ],
+        key=lambda item: item["amount"],
+        reverse=True,
+    )[:8]
+
+    return {
+        "month": last_month,
+        "summary": {
+            **selected,
+            "savingsRate": selected["savings"] / selected["income"] if selected["income"] else 0,
+            "expenseChange": expense_change,
+        },
+        "trend": trend,
+        "byCategory": sorted(by_category.items(), key=lambda item: item[1], reverse=True),
+        "byAccount": sorted(by_account.items(), key=lambda item: item[0]),
+        "byPaymentMethod": sorted(
+            by_payment_method.items(), key=lambda item: item[1], reverse=True
+        ),
+        "topExpenses": top_expenses,
     }
 
 

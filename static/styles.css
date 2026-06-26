@@ -1187,6 +1187,200 @@ td select {
   cursor: not-allowed;
 }
 
+.report-toolbar {
+  align-items: center;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  padding: 18px 0 2px;
+}
+
+.report-toolbar p {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 5px;
+}
+
+.report-kpis {
+  margin-top: 14px;
+}
+
+.report-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.report-grid-main {
+  grid-template-columns: 1.45fr 0.75fr;
+}
+
+.report-change {
+  background: rgba(30, 213, 155, 0.1);
+  border: 1px solid rgba(30, 213, 155, 0.26);
+  border-radius: 999px;
+  color: var(--green);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 9px;
+  white-space: nowrap;
+}
+
+.report-change.negative {
+  background: rgba(255, 95, 104, 0.1);
+  border-color: rgba(255, 95, 104, 0.26);
+  color: var(--red);
+}
+
+.report-trend-chart {
+  align-items: end;
+  border-bottom: 1px solid #33415e;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(6, minmax(60px, 1fr));
+  height: 250px;
+  margin: 24px 24px 8px;
+  padding: 18px 10px 0;
+}
+
+.report-month-group {
+  align-items: center;
+  display: grid;
+  gap: 9px;
+  height: 100%;
+  grid-template-rows: minmax(0, 1fr) 22px;
+}
+
+.report-month-group > strong {
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.report-columns {
+  align-items: end;
+  display: flex;
+  gap: 5px;
+  height: 100%;
+  justify-content: center;
+}
+
+.report-column {
+  border-radius: 5px 5px 0 0;
+  display: block;
+  min-height: 2px;
+  width: min(16px, 26%);
+}
+
+.report-column.income {
+  background: var(--green);
+}
+
+.report-column.expense {
+  background: var(--red);
+}
+
+.report-column.saving {
+  background: var(--amber);
+}
+
+.report-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  padding: 8px 24px 20px;
+}
+
+.report-legend span {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 12px;
+  gap: 7px;
+}
+
+.report-legend i {
+  border-radius: 3px;
+  height: 9px;
+  width: 9px;
+}
+
+.legend-income {
+  background: var(--green);
+}
+
+.legend-expense {
+  background: var(--red);
+}
+
+.legend-saving {
+  background: var(--amber);
+}
+
+.report-bars {
+  max-height: 330px;
+  overflow: auto;
+  padding: 18px 20px;
+}
+
+.report-breakdown {
+  display: grid;
+  gap: 16px;
+  padding: 18px 20px 22px;
+}
+
+.report-breakdown-row {
+  display: grid;
+  gap: 8px;
+}
+
+.report-breakdown-head {
+  align-items: center;
+  display: flex;
+  font-size: 13px;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.report-breakdown-head strong {
+  font-family: Consolas, "Courier New", monospace;
+  white-space: nowrap;
+}
+
+.report-breakdown-head .positive {
+  color: var(--green);
+}
+
+.report-breakdown-head .negative {
+  color: var(--red);
+}
+
+.report-mini-track {
+  background: #1b2740;
+  border-radius: 999px;
+  height: 7px;
+  overflow: hidden;
+}
+
+.report-mini-fill {
+  background: var(--green);
+  height: 100%;
+}
+
+.report-mini-fill.negative {
+  background: var(--red);
+}
+
+.report-expenses-table {
+  min-width: 900px;
+}
+
+.report-expenses-table th:last-child,
+.report-expenses-table td:last-child {
+  text-align: right;
+}
+
 @media (min-width: 981px) {
   .summary-grid .panel {
     min-height: 310px;
@@ -1196,6 +1390,9 @@ td select {
 @media (max-width: 980px) {
   .shell {
     grid-template-columns: 1fr;
+    min-width: 0;
+    overflow: hidden;
+    width: 100%;
   }
 
   .sidebar {
@@ -1203,8 +1400,11 @@ td select {
     border-right: 0;
     display: block;
     height: auto;
+    min-width: 0;
+    overflow: hidden;
     padding: 14px 16px;
     position: static;
+    width: 100%;
   }
 
   .brand {
@@ -1215,8 +1415,10 @@ td select {
   .nav-menu {
     display: flex;
     gap: 8px;
+    max-width: 100%;
     overflow-x: auto;
     padding-bottom: 4px;
+    width: 100%;
   }
 
   .nav-item {
@@ -1229,12 +1431,18 @@ td select {
   }
 
   .app {
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
     padding: 0 16px 24px;
+    width: 100%;
   }
 
   .topbar,
   .layout,
-  .summary-grid {
+  .summary-grid,
+  .report-grid,
+  .report-grid-main {
     grid-template-columns: 1fr;
   }
 
@@ -1271,6 +1479,10 @@ td select {
   .wide-field {
     grid-column: auto;
   }
+
+  .report-toolbar {
+    align-items: flex-start;
+  }
 }
 
 @media (max-width: 600px) {
@@ -1289,5 +1501,19 @@ td select {
 
   .month-picker input {
     width: 100%;
+  }
+
+  .report-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .report-trend-chart {
+    gap: 8px;
+    grid-template-columns: repeat(6, minmax(38px, 1fr));
+    height: 220px;
+    margin-left: 12px;
+    margin-right: 12px;
+    overflow-x: auto;
   }
 }

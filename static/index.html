@@ -18,6 +18,7 @@
           <button class="nav-item" type="button" data-view="movementsView">Movimientos financieros</button>
           <button class="nav-item" type="button" data-view="recurringView">Gastos recurrentes</button>
           <button class="nav-item" type="button" data-view="savingsView">Ahorro/Venta</button>
+          <button class="nav-item" type="button" data-view="reportsView">Reportes</button>
           <button class="nav-item" type="button" data-view="weddingView">Gastos de boda</button>
         </nav>
         <div class="sidebar-note">
@@ -472,6 +473,108 @@
                   </tr>
                 </thead>
                 <tbody id="savingSaleBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section id="reportsView" class="view-section">
+          <section class="report-toolbar">
+            <div>
+              <h2>Lectura del mes seleccionado</h2>
+              <p>Comparacion de movimientos reales y compromisos recurrentes.</p>
+            </div>
+            <button id="exportReportBtn" class="ghost" type="button">Exportar CSV</button>
+          </section>
+
+          <section class="kpis report-kpis" aria-label="Resumen del reporte">
+            <article class="kpi income">
+              <span>Ingresos</span>
+              <strong id="reportIncomeKpi">Q0.00</strong>
+            </article>
+            <article class="kpi expense">
+              <span>Gastos</span>
+              <strong id="reportExpenseKpi">Q0.00</strong>
+            </article>
+            <article class="kpi rate">
+              <span>Ahorro</span>
+              <strong id="reportSavingsKpi">Q0.00</strong>
+            </article>
+            <article class="kpi balance">
+              <span>Resultado del mes</span>
+              <strong id="reportBalanceKpi">Q0.00</strong>
+            </article>
+          </section>
+
+          <section class="report-grid report-grid-main">
+            <section class="panel report-trend-panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Tendencia de 6 meses</h2>
+                  <p>Ingresos, gastos y ahorro registrados.</p>
+                </div>
+                <span id="reportExpenseChange" class="report-change">Sin comparacion</span>
+              </div>
+              <div id="reportTrendChart" class="report-trend-chart"></div>
+              <div class="report-legend">
+                <span><i class="legend-income"></i>Ingresos</span>
+                <span><i class="legend-expense"></i>Gastos</span>
+                <span><i class="legend-saving"></i>Ahorro</span>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Gastos por categoria</h2>
+                  <p>Distribucion del mes seleccionado.</p>
+                </div>
+              </div>
+              <div id="reportCategoryBars" class="bars report-bars"></div>
+            </section>
+          </section>
+
+          <section class="report-grid">
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Metodos de pago recurrentes</h2>
+                  <p>Compromiso mensual equivalente por metodo.</p>
+                </div>
+              </div>
+              <div id="reportPaymentMethods" class="report-breakdown"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Flujo por cuenta</h2>
+                  <p>Entradas y salidas netas del mes.</p>
+                </div>
+              </div>
+              <div id="reportAccountFlow" class="report-breakdown"></div>
+            </section>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Gastos principales</h2>
+                <p>Los movimientos de gasto con mayor monto.</p>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="report-expenses-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Descripcion</th>
+                    <th>Categoria</th>
+                    <th>Cuenta</th>
+                    <th>Monto</th>
+                  </tr>
+                </thead>
+                <tbody id="reportTopExpenses"></tbody>
               </table>
             </div>
           </section>

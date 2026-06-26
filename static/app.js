@@ -21,6 +21,14 @@ const state = {
     accounts: [],
     summary: {},
   },
+  reports: {
+    summary: {},
+    trend: [],
+    byCategory: [],
+    byAccount: [],
+    byPaymentMethod: [],
+    topExpenses: [],
+  },
   exchangeRate: null,
   deleteTransactionId: null,
   deleteTransactionIds: [],
@@ -116,7 +124,7 @@ async function load() {
 }
 
 async function refreshAll() {
-  await Promise.all([loadImports(), loadDashboard(), loadWedding(), loadRecurring()]);
+  await Promise.all([loadImports(), loadDashboard(), loadWedding(), loadRecurring(), loadReports()]);
 }
 
 async function loadImports() {
@@ -141,6 +149,12 @@ async function loadRecurring() {
   $("recurringCategory").innerHTML = optionList(state.recurring.categories, "Suscripciones");
   $("recurringAccount").innerHTML = optionList(state.recurring.accounts, "TC");
   renderRecurring();
+}
+
+async function loadReports() {
+  const month = $("monthInput").value;
+  state.reports = await api(`/api/reports?month=${encodeURIComponent(month)}`);
+  renderReports();
 }
 
 function renderDashboard() {
@@ -301,6 +315,131 @@ function resetRecurringForm() {
   $("recurringFormTitle").textContent = "Registrar gasto recurrente";
   $("recurringSaveBtn").textContent = "Guardar gasto";
   $("recurringCancelBtn").hidden = true;
+}
+
+function reportMonthLabel(month) {
+  if (!month) return "";
+  const [year, monthNumber] = month.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-GT", { month: "short" })
+    .format(new Date(year, monthNumber - 1, 1))
+    .replace(".", "");
+}
+
+function renderReportBreakdown(targetId, rows, emptyText) {
+  const total = rows.reduce((sum, [, amount]) => sum + Math.abs(Number(amount || 0)), 0);
+  $(targetId).innerHTML =
+    rows.length === 0
+      ? `<p class="empty">${emptyText}</p>`
+      : rows
+          .map(([label, amount]) => {
+            const numericAmount = Number(amount || 0);
+            const width = total ? Math.max(4, (Math.abs(numericAmount) / total) * 100) : 0;
+            const tone = numericAmount >= 0 ? "positive" : "negative";
+            return `
+              <div class="report-breakdown-row">
+                <div class="report-breakdown-head">
+                  <span>${escapeHtml(label)}</span>
+                  <strong class="${tone}">${fmtMoney.format(numericAmount)}</strong>
+                </div>
+                <div class="report-mini-track">
+                  <div class="report-mini-fill ${tone}" style="width:${width}%"></div>
+                </div>
+              </div>`;
+          })
+          .join("");
+}
+
+function renderReports() {
+  const data = state.reports;
+  const summary = data.summary || {};
+  $("reportIncomeKpi").textContent = fmtMoney.format(summary.income || 0);
+  $("reportExpenseKpi").textContent = fmtMoney.format(summary.expenses || 0);
+  $("reportSavingsKpi").textContent = `${fmtMoney.format(summary.savings || 0)} / ${Math.round(
+    Number(summary.savingsRate || 0) * 100,
+  )}%`;
+  $("reportBalanceKpi").textContent = fmtMoney.format(summary.balance || 0);
+
+  const expenseChange = Number(summary.expenseChange || 0);
+  $("reportExpenseChange").textContent =
+    expenseChange === 0
+      ? "Sin cambio vs. mes anterior"
+      : `${expenseChange > 0 ? "+" : ""}${Math.round(expenseChange * 100)}% gastos vs. mes anterior`;
+  $("reportExpenseChange").className = `report-change ${expenseChange > 0 ? "negative" : "positive"}`;
+
+  const trend = data.trend || [];
+  const maxValue = Math.max(
+    ...trend.flatMap((row) => [Number(row.income || 0), Number(row.expenses || 0), Number(row.savings || 0)]),
+    1,
+  );
+  $("reportTrendChart").innerHTML = trend
+    .map((row) => {
+      const incomeHeight = (Number(row.income || 0) / maxValue) * 100;
+      const expenseHeight = (Number(row.expenses || 0) / maxValue) * 100;
+      const savingsHeight = (Number(row.savings || 0) / maxValue) * 100;
+      return `
+        <div class="report-month-group" title="${escapeHtml(row.month)}">
+          <div class="report-columns">
+            <span class="report-column income" style="height:${incomeHeight}%"></span>
+            <span class="report-column expense" style="height:${expenseHeight}%"></span>
+            <span class="report-column saving" style="height:${savingsHeight}%"></span>
+          </div>
+          <strong>${escapeHtml(reportMonthLabel(row.month))}</strong>
+        </div>`;
+    })
+    .join("");
+
+  const categories = data.byCategory || [];
+  const maxCategory = Math.max(...categories.map(([, amount]) => Number(amount)), 0);
+  $("reportCategoryBars").innerHTML =
+    categories.length === 0
+      ? `<p class="empty">Sin gastos por categoria en este mes.</p>`
+      : categories
+          .map(([category, amount]) => {
+            const width = maxCategory ? Math.max(4, (Number(amount) / maxCategory) * 100) : 0;
+            return `
+              <div class="bar-row">
+                <div class="bar-label">
+                  <span>${escapeHtml(category)}</span>
+                  <span>${fmtMoney.format(amount)}</span>
+                </div>
+                <div class="bar-track"><div class="bar-fill" style="width:${width}%"></div></div>
+              </div>`;
+          })
+          .join("");
+
+  renderReportBreakdown(
+    "reportPaymentMethods",
+    data.byPaymentMethod || [],
+    "Sin gastos recurrentes configurados.",
+  );
+  renderReportBreakdown("reportAccountFlow", data.byAccount || [], "Sin movimientos por cuenta.");
+
+  const topExpenses = data.topExpenses || [];
+  $("reportTopExpenses").innerHTML =
+    topExpenses.length === 0
+      ? `<tr><td class="empty" colspan="5">Sin gastos registrados en este mes.</td></tr>`
+      : topExpenses
+          .map(
+            (expense) => `
+              <tr>
+                <td>${escapeHtml(expense.date)}</td>
+                <td class="description">${escapeHtml(expense.description)}</td>
+                <td>${escapeHtml(expense.category)}</td>
+                <td>${escapeHtml(expense.account)}</td>
+                <td class="money amount-expense">${fmtMoney.format(expense.amount)}</td>
+              </tr>`,
+          )
+          .join("");
+}
+
+function exportReportCsv() {
+  const link = document.createElement("a");
+  link.href = `/api/reports/export?month=${encodeURIComponent(state.reports.month)}`;
+  link.download = `reporte-financiero-${state.reports.month}.csv`;
+  link.hidden = true;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 }
 
 function savingSaleRows() {
@@ -521,6 +660,7 @@ function setActiveView(viewId) {
     movementsView: ["Movimientos financieros", "Importa estados de cuenta, registra ajustes y revisa movimientos."],
     recurringView: ["Gastos recurrentes", "Controla pagos mensuales, suscripciones y renovaciones anuales."],
     savingsView: ["Ahorro/Venta", "Seguimiento de ahorros y ventas USD registrados manualmente."],
+    reportsView: ["Reportes", "Analiza tendencias, categorias y comportamiento mensual."],
     weddingView: ["Gastos de boda", "Presupuesto, abonos y proveedores del evento."],
   };
   const [title, subtitle] = titles[viewId] || titles.summaryView;
@@ -741,6 +881,7 @@ $("transactionsSearch").addEventListener("input", renderDashboard);
 $("savingSaleSearch").addEventListener("input", renderSavingSales);
 $("recurringSearch").addEventListener("input", renderRecurring);
 $("weddingSearch").addEventListener("input", renderWedding);
+$("exportReportBtn").addEventListener("click", exportReportCsv);
 
 $("recurringForm").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -967,6 +1108,7 @@ $("monthInput").addEventListener("change", () => {
   $("manualForm").elements.date.value = defaultDateForSelectedMonth();
   loadDashboard();
   loadRecurring();
+  loadReports();
 });
 
 load().catch((error) => {
