@@ -494,6 +494,21 @@ def account_for_bank(bank: str, fallback: str = "GYT - Cuenta ahorro sueldo") ->
     return fallback
 
 
+def bank_from_account(account: str) -> str:
+    account_upper = account.upper()
+    if "BANRURAL" in account_upper:
+        return "Banrural"
+    if "INDUSTRIAL" in account_upper:
+        return "Banco Industrial"
+    if "BAC" in account_upper:
+        return "BAC"
+    if "GYT" in account_upper or "G&T" in account_upper:
+        return "GYT"
+    if "EFECTIVO" in account_upper:
+        return "Efectivo"
+    return "Otro"
+
+
 def suggest_category(description: str, amount: float) -> str:
     desc = description.upper()
     if amount > 0:
@@ -2011,11 +2026,39 @@ def build_dashboard(month: str) -> dict:
     transfers = sum(row["amount"] for row in txs if row["type"] == "Transferencia")
     by_category: dict[str, float] = {}
     by_account: dict[str, float] = {}
+    by_bank: dict[str, dict[str, float]] = {}
     for row in txs:
         if row["type"] == "Gasto":
             by_category[row["category"]] = by_category.get(row["category"], 0) + row["amount"]
         account_delta = row["amount"] if row["type"] in ("Ingreso", "Ahorro", "Venta USD") else -row["amount"]
         by_account[row["account"]] = by_account.get(row["account"], 0) + account_delta
+        bank_name = bank_from_account(row["account"])
+        bank_row = by_bank.setdefault(
+            bank_name,
+            {
+                "income": 0,
+                "expenses": 0,
+                "savings": 0,
+                "usdSales": 0,
+                "transfers": 0,
+                "net": 0,
+            },
+        )
+        if row["type"] == "Ingreso":
+            bank_row["income"] += row["amount"]
+            bank_row["net"] += row["amount"]
+        elif row["type"] == "Venta USD":
+            bank_row["usdSales"] += row["amount"]
+            bank_row["net"] += row["amount"]
+        elif row["type"] == "Ahorro":
+            bank_row["savings"] += row["amount"]
+            bank_row["net"] += row["amount"]
+        elif row["type"] == "Transferencia":
+            bank_row["transfers"] += row["amount"]
+            bank_row["net"] -= row["amount"]
+        else:
+            bank_row["expenses"] += row["amount"]
+            bank_row["net"] -= row["amount"]
     return {
         "month": month,
         "baseIncome": base_income,
@@ -2028,6 +2071,7 @@ def build_dashboard(month: str) -> dict:
         "savingsRate": savings / income if income else 0,
         "byCategory": sorted(by_category.items(), key=lambda x: x[1], reverse=True),
         "byAccount": sorted(by_account.items(), key=lambda x: x[0]),
+        "byBank": [{"bank": bank, **values} for bank, values in sorted(by_bank.items(), key=lambda x: x[0])],
         "transactions": [rowdict(row) for row in txs],
     }
 

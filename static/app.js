@@ -202,19 +202,24 @@ function renderDashboard() {
           .join("");
 
   $("accountSummary").innerHTML =
-    data.byAccount.length === 0
-      ? `<p class="empty">Sin movimientos por cuenta en este mes.</p>`
-      : data.byAccount
-          .map(([account, amount]) => {
-            const tone = amount >= 0 ? "positive" : "negative";
-            const description = amount >= 0 ? "Entrada neta del mes" : "Salida neta del mes";
+    (data.byBank || []).length === 0
+      ? `<p class="empty">Sin movimientos por banco en este mes.</p>`
+      : data.byBank
+          .map((item) => {
+            const tone = item.net >= 0 ? "positive" : "negative";
             return `
-              <div class="account-row">
-                <span>
-                  ${escapeHtml(account)}
-                  <small>${description}</small>
-                </span>
-                <strong class="${tone}">${fmtMoney.format(amount)}</strong>
+              <div class="bank-summary-row">
+                <div class="bank-summary-head">
+                  <strong>${escapeHtml(item.bank)}</strong>
+                  <span class="${tone}">${fmtMoney.format(item.net)}</span>
+                </div>
+                <div class="bank-summary-grid">
+                  <span><small>Ingresos</small>${fmtMoney.format(item.income || 0)}</span>
+                  <span><small>Gastos</small>${fmtMoney.format(item.expenses || 0)}</span>
+                  <span><small>Ahorros</small>${fmtMoney.format(item.savings || 0)}</span>
+                  <span><small>Ventas USD</small>${fmtMoney.format(item.usdSales || 0)}</span>
+                  <span><small>Transferencias</small>${fmtMoney.format(item.transfers || 0)}</span>
+                </div>
               </div>`;
           })
           .join("");
