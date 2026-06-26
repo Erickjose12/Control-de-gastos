@@ -40,6 +40,7 @@ const state = {
   deleteTransactionId: null,
   deleteTransactionIds: [],
   weddingAttachmentExpenseId: null,
+  theme: localStorage.getItem("finanzas-theme") || "dark",
 };
 
 const fmtMoney = new Intl.NumberFormat("es-GT", {
@@ -49,6 +50,15 @@ const fmtMoney = new Intl.NumberFormat("es-GT", {
 });
 
 const $ = (id) => document.getElementById(id);
+
+function applyTheme(theme) {
+  state.theme = theme === "light" ? "light" : "dark";
+  document.documentElement.dataset.theme = state.theme;
+  localStorage.setItem("finanzas-theme", state.theme);
+  $("themeToggleText").textContent = state.theme === "light" ? "Light" : "Dark";
+  $("themeToggle").setAttribute("aria-label", state.theme === "light" ? "Cambiar a modo oscuro" : "Cambiar a modo claro");
+  document.querySelector(".theme-toggle-icon").textContent = state.theme === "light" ? "☀" : "☾";
+}
 
 async function api(path, options = {}) {
   const res = await fetch(path, options);
@@ -117,6 +127,7 @@ function amountClassForType(type) {
 }
 
 async function load() {
+  applyTheme(state.theme);
   state.meta = await api("/api/meta");
   if (state.meta.latestMonth) {
     $("monthInput").value = state.meta.latestMonth;
@@ -127,6 +138,7 @@ async function load() {
   setWeddingDefaultDates();
   updateManualDefaults();
   bindNavigation();
+  bindImportUploader();
   await refreshAll();
 }
 
@@ -558,6 +570,23 @@ function renderImports() {
             </tr>`,
           )
           .join("");
+  renderImportWorkflow(filteredImports.length);
+}
+
+function renderImportWorkflow(filteredCount = state.imports.length) {
+  const hasFile = Boolean($("fileInput")?.files?.length);
+  const hasImports = state.imports.length > 0;
+  $("importStepUpload").classList.toggle("active", !hasImports);
+  $("importStepUpload").classList.toggle("done", hasImports);
+  $("importStepReview").classList.toggle("active", hasImports);
+  $("importStepReview").classList.toggle("done", false);
+  $("importStepDone").classList.toggle("active", false);
+  $("commitBtn").disabled = !hasImports;
+  $("commitBtn").textContent = hasImports ? `Importar ${state.imports.length} registros` : "Importar registros";
+  $("importReviewSummary").textContent = hasImports
+    ? `${filteredCount} de ${state.imports.length} movimientos listos para guardar.`
+    : "Selecciona el archivo para revisar los movimientos antes de guardarlos.";
+  $("importSubmitBtn").textContent = hasFile ? "Revisar archivo" : "Selecciona un archivo";
 }
 
 function renderWedding() {
@@ -710,6 +739,74 @@ function bindNavigation() {
   });
 }
 
+function syncSelectedFileName() {
+  const input = $("fileInput");
+  const file = input.files?.[0];
+  $("selectedFileName").textContent = file ? file.name : "o haz clic para seleccionar el archivo PDF o CSV";
+  $("dropzoneTitle").textContent = file ? "Archivo listo para revisar" : "Arrastra tu estado de cuenta aqui";
+  renderImportWorkflow();
+}
+
+function guessBankFromFileName(fileName) {
+  const name = normalizeSearch(fileName);
+  if (name.includes("banrural")) return "Banrural";
+  if (name.includes("bac")) return "BAC";
+  if (name.includes("gyt") || name.includes("g&t") || name.includes("continental")) return "GYT";
+  return "";
+}
+
+function updateImportAccountForBank() {
+  const bank = $("bankSelect").value;
+  const preferred = {
+    Banrural: "Banrural - Cuenta ahorro",
+    BAC: "BAC - Cuenta ahorro USD",
+    GYT: "GYT - Cuenta ahorro sueldo",
+  }[bank];
+  if (preferred) {
+    $("accountSelect").innerHTML = optionList(state.meta.accounts, preferred);
+  }
+}
+
+function bindImportUploader() {
+  const dropzone = $("importDropzone");
+  const fileInput = $("fileInput");
+  const bankSelect = $("bankSelect");
+
+  fileInput.addEventListener("change", () => {
+    const guessedBank = guessBankFromFileName(fileInput.files?.[0]?.name || "");
+    if (guessedBank) {
+      bankSelect.value = guessedBank;
+      updateImportAccountForBank();
+    }
+    syncSelectedFileName();
+  });
+
+  bankSelect.addEventListener("change", updateImportAccountForBank);
+
+  ["dragenter", "dragover"].forEach((eventName) => {
+    dropzone.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      dropzone.classList.add("drag-over");
+    });
+  });
+
+  ["dragleave", "drop"].forEach((eventName) => {
+    dropzone.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      dropzone.classList.remove("drag-over");
+    });
+  });
+
+  dropzone.addEventListener("drop", (event) => {
+    const file = event.dataTransfer.files?.[0];
+    if (!file) return;
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    fileInput.files = transfer.files;
+    fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+}
+
 function openModal(id) {
   $(id).hidden = false;
 }
@@ -822,14 +919,16 @@ $("importForm").addEventListener("submit", async (event) => {
     $("importStatus").textContent = `Listo: ${result.count} movimientos cargados a revision.`;
     form.reset();
     $("accountSelect").innerHTML = optionList(state.meta.accounts, "GYT - Cuenta ahorro sueldo");
+    syncSelectedFileName();
     await loadImports();
   } catch (error) {
-    $("importStatus").textContent = error.message || "No se pudo importar el archivo.";
+    $("importStatus").textContent = readableError(error) || "No se pudo importar el archivo.";
     console.error(error);
   }
 });
 
 $("commitBtn").addEventListener("click", async () => {
+  if (!state.imports.length) return;
   const result = await api("/api/imports/commit", { method: "POST" });
   $("importStatus").textContent = `Registrados ${result.count} movimientos.`;
   if (result.month) {
@@ -837,6 +936,10 @@ $("commitBtn").addEventListener("click", async () => {
   }
   await refreshAll();
   setActiveView("summaryView");
+});
+
+$("themeToggle").addEventListener("click", () => {
+  applyTheme(state.theme === "light" ? "dark" : "light");
 });
 
 $("manualType").addEventListener("change", updateManualDefaults);

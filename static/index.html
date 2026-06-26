@@ -12,6 +12,10 @@
         <div class="brand">
           <strong>Finanzas Local</strong>
           <span>Control personal</span>
+          <button id="themeToggle" class="theme-toggle" type="button" aria-label="Cambiar a modo claro">
+            <span class="theme-toggle-icon" aria-hidden="true">☾</span>
+            <span id="themeToggleText">Dark</span>
+          </button>
         </div>
         <nav class="nav-menu" aria-label="Menu principal">
           <button class="nav-item active" type="button" data-view="summaryView">Dashboard</button>
@@ -147,27 +151,48 @@
           <section class="layout movements-import-layout">
             <section class="panel import-panel">
               <div class="panel-head">
-                <h2>Importar banco</h2>
+                <div>
+                  <h2>Importar Estado de Cuenta</h2>
+                  <p>Soporta Banrural, GYT, BAC y archivos CSV.</p>
+                </div>
                 <button id="clearImportsBtn" class="ghost" type="button">Limpiar bandeja</button>
               </div>
               <form id="importForm" class="import-form">
-                <label>
-                  Archivo CSV o PDF
+                <div class="import-steps" aria-label="Proceso de importacion">
+                  <span id="importStepUpload" class="import-step active"><strong>1</strong> Subir archivo</span>
+                  <span id="importStepReview" class="import-step"><strong>2</strong> Revisar</span>
+                  <span id="importStepDone" class="import-step"><strong>3</strong> Listo</span>
+                </div>
+
+                <label id="importDropzone" class="import-dropzone" for="fileInput">
                   <input id="fileInput" name="file" type="file" accept=".csv,.pdf" required />
+                  <span class="dropzone-icon" aria-hidden="true">↑</span>
+                  <strong id="dropzoneTitle">Arrastra tu estado de cuenta aqui</strong>
+                  <span id="selectedFileName">o haz clic para seleccionar el archivo PDF o CSV</span>
+                  <span class="bank-tags" aria-hidden="true">
+                    <span>Banrural</span>
+                    <span>GYT</span>
+                    <span>BAC</span>
+                    <span>CSV</span>
+                  </span>
                 </label>
-                <label>
-                  Banco
-                  <select name="bank">
-                    <option>GYT</option>
-                    <option>BAC</option>
-                    <option>Banrural</option>
-                  </select>
-                </label>
-                <label>
-                  Cuenta
-                  <select id="accountSelect" name="account"></select>
-                </label>
-                <button class="primary" type="submit">Importar</button>
+
+                <div class="import-detected-card" hidden>
+                  <div>
+                    <span class="detected-label">Banco</span>
+                    <select id="bankSelect" name="bank">
+                      <option>GYT</option>
+                      <option>BAC</option>
+                      <option>Banrural</option>
+                    </select>
+                  </div>
+                  <div>
+                    <span class="detected-label">Cuenta destino</span>
+                    <select id="accountSelect" name="account"></select>
+                  </div>
+                </div>
+
+                <button id="importSubmitBtn" class="primary import-main-button" type="submit">Revisar archivo</button>
               </form>
               <p id="importStatus" class="status"></p>
             </section>
@@ -176,8 +201,11 @@
 
           <section class="panel">
             <div class="panel-head">
-              <h2>Bandeja de revision</h2>
-              <button id="commitBtn" class="primary" type="button">Guardar importacion</button>
+              <div>
+                <h2>Bandeja de revision</h2>
+                <p id="importReviewSummary">Selecciona el archivo para revisar los movimientos antes de guardarlos.</p>
+              </div>
+              <button id="commitBtn" class="primary" type="button">Importar registros</button>
             </div>
             <div class="table-tools">
               <label>
