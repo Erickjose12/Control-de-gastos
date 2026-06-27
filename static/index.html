@@ -21,7 +21,7 @@
           <button class="nav-item active" type="button" data-view="summaryView">Dashboard</button>
           <button class="nav-item" type="button" data-view="movementsView">Movimientos financieros</button>
           <button class="nav-item" type="button" data-view="recurringView">Gastos recurrentes</button>
-          <button class="nav-item" type="button" data-view="savingsView">Ahorro/Venta</button>
+          <button class="nav-item" type="button" data-view="savingsView">Venta dolares</button>
           <button class="nav-item" type="button" data-view="reportsView">Reportes</button>
           <button class="nav-item" type="button" data-view="weddingView">Gastos de boda</button>
         </nav>
@@ -367,18 +367,10 @@
         </section>
 
         <section id="savingsView" class="view-section">
-          <section class="kpis compact-kpis" aria-label="Resumen de ahorro y venta">
-            <article class="kpi rate">
-              <span>Ahorros manuales</span>
-              <strong id="savingManualKpi">Q0.00</strong>
-            </article>
+          <section class="kpis compact-kpis dollar-sale-kpis" aria-label="Resumen de venta de dolares">
             <article class="kpi income">
               <span>Ventas USD</span>
               <strong id="usdSaleKpi">Q0.00</strong>
-            </article>
-            <article class="kpi balance">
-              <span>Total registrado</span>
-              <strong id="savingSaleTotalKpi">Q0.00</strong>
             </article>
             <article class="kpi">
               <span>Registros</span>
@@ -398,11 +390,7 @@
               <label>
                 Tipo
                 <select id="manualType" name="type">
-                  <option>Ahorro</option>
                   <option>Venta USD</option>
-                  <option>Ingreso</option>
-                  <option>Gasto</option>
-                  <option>Transferencia</option>
                 </select>
               </label>
               <label>
@@ -437,13 +425,13 @@
           <section class="panel">
             <div class="panel-head">
               <div>
-                <h2>Ahorros y ventas del mes</h2>
-                <p>Registros manuales de ahorro y venta USD.</p>
+                <h2>Ventas de dolares del mes</h2>
+                <p>Registros manuales de venta USD.</p>
               </div>
             </div>
             <div class="table-tools">
               <label>
-                Buscar ahorro o venta
+                Buscar venta de dolares
                 <input id="savingSaleSearch" type="search" placeholder="Fecha, cuenta, descripcion, tipo, categoria..." />
               </label>
             </div>
@@ -479,7 +467,7 @@
           <section class="report-toolbar">
             <div>
               <h2>Lectura del mes seleccionado</h2>
-              <p>Movimientos, ahorro/venta, recurrentes y gastos de boda.</p>
+              <p>Movimientos, venta dolares, recurrentes y gastos de boda.</p>
             </div>
             <button id="exportReportBtn" class="ghost" type="button">Exportar CSV</button>
           </section>

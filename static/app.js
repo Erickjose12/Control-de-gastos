@@ -43,6 +43,8 @@ const state = {
   theme: localStorage.getItem("finanzas-theme") || "dark",
 };
 
+const DOLLAR_SALE_ACCOUNT = "BAC - Cuenta ahorro USD";
+
 const fmtMoney = new Intl.NumberFormat("es-GT", {
   style: "currency",
   currency: "GTQ",
@@ -133,7 +135,7 @@ async function load() {
     $("monthInput").value = state.meta.latestMonth;
   }
   $("accountSelect").innerHTML = optionList(state.meta.accounts, "GYT - Cuenta ahorro sueldo");
-  $("manualAccount").innerHTML = optionList(state.meta.accounts, "Banrural - Cuenta ahorro");
+  $("manualAccount").innerHTML = optionList([DOLLAR_SALE_ACCOUNT], DOLLAR_SALE_ACCOUNT);
   $("manualForm").elements.date.value = defaultDateForSelectedMonth();
   setWeddingDefaultDates();
   updateManualDefaults();
@@ -473,16 +475,13 @@ function exportReportCsv() {
 
 function savingSaleRows() {
   const transactions = state.dashboard?.transactions || [];
-  return transactions.filter((tx) => !tx.source_import_id && ["Ahorro", "Venta USD"].includes(tx.type));
+  return transactions.filter((tx) => !tx.source_import_id && tx.type === "Venta USD");
 }
 
 function renderSavingSales() {
   const rows = savingSaleRows();
-  const savings = rows.filter((tx) => tx.type === "Ahorro").reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
-  const sales = rows.filter((tx) => tx.type === "Venta USD").reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
-  $("savingManualKpi").textContent = fmtMoney.format(savings);
+  const sales = rows.reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
   $("usdSaleKpi").textContent = fmtMoney.format(sales);
-  $("savingSaleTotalKpi").textContent = fmtMoney.format(savings + sales);
   $("savingSaleCountKpi").textContent = rows.length;
 
   const query = normalizeSearch($("savingSaleSearch").value);
@@ -495,7 +494,7 @@ function renderSavingSales() {
 
   $("savingSaleBody").innerHTML =
     rows.length === 0
-      ? `<tr><td class="empty" colspan="7">Sin ahorros o ventas manuales en este mes.</td></tr>`
+      ? `<tr><td class="empty" colspan="7">Sin ventas de dolares registradas en este mes.</td></tr>`
       : filteredRows.length === 0
         ? `<tr><td class="empty" colspan="7">No hay registros que coincidan con la busqueda.</td></tr>`
         : filteredRows
@@ -654,16 +653,9 @@ function statusClass(status) {
   }[status] || "pending";
 }
 
-function defaultAccountForType(type) {
-  if (type === "Ahorro" || type === "Venta USD") return "Banrural - Cuenta ahorro";
-  if (type === "Ingreso") return "GYT - Cuenta ahorro sueldo";
-  if (type === "Gasto") return "GYT - Tarjeta credito";
-  return "GYT - Cuenta ahorro sueldo";
-}
-
 function updateManualDefaults() {
   const type = $("manualType").value;
-  $("manualAccount").innerHTML = optionList(state.meta.accounts, defaultAccountForType(type));
+  $("manualAccount").innerHTML = optionList([DOLLAR_SALE_ACCOUNT], DOLLAR_SALE_ACCOUNT);
   if (type === "Venta USD") {
     loadExchangeRate();
   }
@@ -706,7 +698,7 @@ function setActiveView(viewId) {
     summaryView: ["Dashboard", "Resumen mensual de ingresos, gastos y ahorro."],
     movementsView: ["Movimientos financieros", "Importa estados de cuenta, registra ajustes y revisa movimientos."],
     recurringView: ["Gastos recurrentes", "Controla pagos mensuales, suscripciones y renovaciones anuales."],
-    savingsView: ["Ahorro/Venta", "Seguimiento de ahorros y ventas USD registrados manualmente."],
+    savingsView: ["Venta dolares", "Seguimiento de ventas USD registradas manualmente."],
     reportsView: ["Reportes", "Analiza tendencias, categorias y comportamiento mensual."],
     weddingView: ["Gastos de boda", "Presupuesto, abonos y proveedores del evento."],
   };
