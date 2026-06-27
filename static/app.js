@@ -183,24 +183,6 @@ function renderDashboard() {
   $("balanceKpi").textContent = fmtMoney.format(data.balance);
   $("rateKpi").textContent = `${fmtMoney.format(data.savings)} / ${Math.round(data.savingsRate * 100)}%`;
 
-  const max = Math.max(...data.byCategory.map(([, amount]) => amount), 0);
-  $("categoryBars").innerHTML =
-    data.byCategory.length === 0
-      ? `<p class="empty">Sin gastos registrados en este mes.</p>`
-      : data.byCategory
-          .map(([category, amount]) => {
-            const width = max ? Math.max(3, (amount / max) * 100) : 0;
-            return `
-              <div class="bar-row">
-                <div class="bar-label">
-                  <span>${escapeHtml(category)}</span>
-                  <span>${fmtMoney.format(amount)}</span>
-                </div>
-                <div class="bar-track"><div class="bar-fill" style="width:${width}%"></div></div>
-              </div>`;
-          })
-          .join("");
-
   $("accountSummary").innerHTML =
     (data.byBank || []).length === 0
       ? `<p class="empty">Sin movimientos por banco en este mes.</p>`
