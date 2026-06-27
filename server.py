@@ -2020,7 +2020,7 @@ def build_dashboard(month: str) -> dict:
         txs = conn.execute("SELECT * FROM transactions WHERE substr(date,1,7)=? ORDER BY date", (month,)).fetchall()
     base_income = sum(row["amount"] for row in txs if row["type"] == "Ingreso")
     usd_sales = sum(row["amount"] for row in txs if row["type"] == "Venta USD")
-    income = base_income + usd_sales
+    income = base_income
     expenses = sum(row["amount"] for row in txs if row["type"] == "Gasto")
     savings = sum(row["amount"] for row in txs if row["type"] == "Ahorro")
     transfers = sum(row["amount"] for row in txs if row["type"] == "Transferencia")
@@ -2030,7 +2030,9 @@ def build_dashboard(month: str) -> dict:
     for row in txs:
         if row["type"] == "Gasto":
             by_category[row["category"]] = by_category.get(row["category"], 0) + row["amount"]
-        account_delta = row["amount"] if row["type"] in ("Ingreso", "Ahorro", "Venta USD") else -row["amount"]
+        if row["type"] == "Venta USD":
+            continue
+        account_delta = row["amount"] if row["type"] in ("Ingreso", "Ahorro") else -row["amount"]
         by_account[row["account"]] = by_account.get(row["account"], 0) + account_delta
         bank_name = bank_from_account(row["account"])
         bank_row = by_bank.setdefault(
@@ -2046,9 +2048,6 @@ def build_dashboard(month: str) -> dict:
         )
         if row["type"] == "Ingreso":
             bank_row["income"] += row["amount"]
-            bank_row["net"] += row["amount"]
-        elif row["type"] == "Venta USD":
-            bank_row["usdSales"] += row["amount"]
             bank_row["net"] += row["amount"]
         elif row["type"] == "Ahorro":
             bank_row["savings"] += row["amount"]
@@ -2131,9 +2130,7 @@ def build_reports(month: str) -> dict:
     trend = []
     for item_month in months:
         month_rows = [row for row in rows if row["date"][:7] == item_month]
-        income = sum(
-            row["amount"] for row in month_rows if row["type"] in ("Ingreso", "Venta USD")
-        )
+        income = sum(row["amount"] for row in month_rows if row["type"] == "Ingreso")
         expenses = sum(row["amount"] for row in month_rows if row["type"] == "Gasto")
         savings = sum(row["amount"] for row in month_rows if row["type"] == "Ahorro")
         trend.append(
@@ -2152,7 +2149,9 @@ def build_reports(month: str) -> dict:
     for row in selected_rows:
         if row["type"] == "Gasto":
             by_category[row["category"]] = by_category.get(row["category"], 0) + row["amount"]
-        delta = row["amount"] if row["type"] in ("Ingreso", "Venta USD", "Ahorro") else -row["amount"]
+        if row["type"] == "Venta USD":
+            continue
+        delta = row["amount"] if row["type"] in ("Ingreso", "Ahorro") else -row["amount"]
         by_account[row["account"]] = by_account.get(row["account"], 0) + delta
 
     by_payment_method: dict[str, float] = {}
