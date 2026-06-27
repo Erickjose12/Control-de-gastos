@@ -104,40 +104,6 @@
             </section>
           </section>
 
-          <section class="panel wedding-dashboard-card">
-            <div class="panel-head">
-              <div>
-                <h2>Presupuesto de boda</h2>
-                <p>Avance general del presupuesto, pagos y pendiente.</p>
-              </div>
-              <button class="ghost" type="button" data-view-shortcut="weddingView">Ver boda</button>
-            </div>
-            <section class="kpis compact-kpis" aria-label="Resumen de boda">
-              <article class="kpi">
-                <span>Presupuesto</span>
-                <strong id="weddingDashBudget">Q0.00</strong>
-              </article>
-              <article class="kpi expense">
-                <span>Gastado</span>
-                <strong id="weddingDashSpent">Q0.00</strong>
-              </article>
-              <article class="kpi income">
-                <span>Pagado</span>
-                <strong id="weddingDashPaid">Q0.00</strong>
-              </article>
-              <article class="kpi balance">
-                <span>Disponible</span>
-                <strong id="weddingDashAvailable">Q0.00</strong>
-              </article>
-            </section>
-            <div class="wedding-progress">
-              <div class="bar-label">
-                <span>Avance del presupuesto</span>
-                <span id="weddingDashProgress">0%</span>
-              </div>
-              <div class="bar-track"><div id="weddingDashBar" class="bar-fill"></div></div>
-            </div>
-          </section>
         </section>
 
         <section id="movementsView" class="view-section">
@@ -652,6 +618,40 @@
         </section>
 
         <section id="weddingView" class="view-section">
+          <section class="panel wedding-dashboard-card">
+            <div class="panel-head">
+              <div>
+                <h2>Presupuesto de boda</h2>
+                <p>Avance general del presupuesto, pagos y pendiente.</p>
+              </div>
+            </div>
+            <section class="kpis compact-kpis" aria-label="Resumen de boda">
+              <article class="kpi">
+                <span>Presupuesto</span>
+                <strong id="weddingDashBudget">Q0.00</strong>
+              </article>
+              <article class="kpi expense">
+                <span>Gastado</span>
+                <strong id="weddingDashSpent">Q0.00</strong>
+              </article>
+              <article class="kpi income">
+                <span>Pagado</span>
+                <strong id="weddingDashPaid">Q0.00</strong>
+              </article>
+              <article class="kpi balance">
+                <span>Disponible</span>
+                <strong id="weddingDashAvailable">Q0.00</strong>
+              </article>
+            </section>
+            <div class="wedding-progress">
+              <div class="bar-label">
+                <span>Avance del presupuesto</span>
+                <span id="weddingDashProgress">0%</span>
+              </div>
+              <div class="bar-track"><div id="weddingDashBar" class="bar-fill"></div></div>
+            </div>
+          </section>
+
           <section class="panel">
             <div class="panel-head">
               <h2>Presupuesto total</h2>
