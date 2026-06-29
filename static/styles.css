@@ -854,7 +854,8 @@ table {
   width: 360px;
 }
 
-.saving-sale-table {
+.saving-sale-table,
+.savings-table {
   min-width: 1180px;
 }
 
@@ -1015,7 +1016,9 @@ td.money {
 }
 
 .saving-sale-table th:last-child,
-.saving-sale-table td.money {
+.saving-sale-table td.money,
+.savings-table th:last-child,
+.savings-table td.money {
   padding-left: 12px;
   text-align: left;
 }
