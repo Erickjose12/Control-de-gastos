@@ -547,9 +547,11 @@ function renderSavingsAccount() {
               <td class="actions-cell">
                 ${
                   tx.attachment_path
-                    ? `<button class="table-action success-text" type="button" data-savings-action="view-attachment" data-attachment-name="${escapeHtml(tx.attachment_name || "Boleta")}" data-attachment-mime="${escapeHtml(tx.attachment_mime || "")}">Ver</button>`
-                    : `<span class="muted-pill">Sin archivo</span>`
+                    ? `<button class="table-action success-text" type="button" data-savings-action="view-attachment" data-attachment-name="${escapeHtml(tx.attachment_name || "Boleta")}" data-attachment-mime="${escapeHtml(tx.attachment_mime || "")}">Ver</button>
+                       <button class="table-action" type="button" data-savings-action="attach">Cambiar</button>`
+                    : `<button class="table-action" type="button" data-savings-action="attach">Adjuntar</button>`
                 }
+                <button class="table-action danger-text" type="button" data-savings-action="delete">Eliminar</button>
               </td>
             </tr>`,
           )
@@ -1233,7 +1235,7 @@ $("weddingExpenseForm").addEventListener("submit", async (event) => {
   }
 });
 
-$("savingsBody").addEventListener("click", (event) => {
+$("savingsBody").addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-savings-action]");
   if (!button) return;
   const transactionId = button.closest("tr").dataset.id;
@@ -1243,6 +1245,24 @@ $("savingsBody").addEventListener("click", (event) => {
       button.dataset.attachmentName || "Boleta adjunta",
       button.dataset.attachmentMime || "",
     );
+  } else if (button.dataset.savingsAction === "attach") {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".pdf,.png,.jpg,.jpeg,.jfif,.webp,.gif,.bmp,.tif,.tiff,.heic,.heif,application/pdf,image/*";
+    input.addEventListener("change", async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const payload = new FormData();
+      payload.append("attachment", file);
+      await api(`/api/transactions/${transactionId}/attachment`, {
+        method: "POST",
+        body: payload,
+      });
+      await loadDashboard();
+    });
+    input.click();
+  } else if (button.dataset.savingsAction === "delete") {
+    await askDeleteTransaction(transactionId);
   }
 });
 

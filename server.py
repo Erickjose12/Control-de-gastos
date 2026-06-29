@@ -1234,6 +1234,10 @@ class App(BaseHTTPRequestHandler):
         elif parsed.path == "/api/transactions/delete":
             body = self.read_json()
             self.delete_transactions(body.get("ids", []))
+        elif parsed.path.startswith("/api/transactions/") and parsed.path.endswith("/attachment"):
+            transaction_id = int(parsed.path.split("/")[3])
+            _, file = self.read_transaction_payload()
+            self.update_transaction_attachment(transaction_id, file)
         elif parsed.path == "/api/wedding/expenses":
             body, file = self.read_wedding_expense_payload()
             self.create_wedding_expense(body, file)
@@ -1788,6 +1792,36 @@ class App(BaseHTTPRequestHandler):
         if existing["attachment_path"] != relative_path:
             delete_wedding_attachment(existing["attachment_path"])
         self.send_json(build_wedding_state())
+
+    def update_transaction_attachment(self, transaction_id: int, file: dict | None) -> None:
+        if not file:
+            self.send_error(400, "Debes seleccionar un archivo PDF o imagen")
+            return
+        with db_connection() as conn:
+            existing = conn.execute(
+                "SELECT attachment_path FROM transactions WHERE id=?",
+                (transaction_id,),
+            ).fetchone()
+            if not existing:
+                self.send_error(404, "Movimiento no encontrado")
+                return
+            try:
+                filename, file_path, mime = save_transaction_attachment(transaction_id, file)
+            except ValueError as exc:
+                self.send_error(400, str(exc))
+                return
+            relative_path = str(file_path.relative_to(DATA))
+            conn.execute(
+                """
+                UPDATE transactions
+                SET attachment_name=?, attachment_path=?, attachment_mime=?
+                WHERE id=?
+                """,
+                (filename, relative_path, mime, transaction_id),
+            )
+        if existing["attachment_path"] != relative_path:
+            delete_transaction_attachment(existing["attachment_path"])
+        self.send_json({"ok": True})
 
     def delete_wedding_expense(self, expense_id: int) -> None:
         with db_connection() as conn:
