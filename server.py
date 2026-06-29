@@ -1965,22 +1965,6 @@ class App(BaseHTTPRequestHandler):
         writer.writerow(["Metodos de pago recurrentes", "Mensual equivalente Q"])
         writer.writerows(report["byPaymentMethod"])
         writer.writerow([])
-        writer.writerow(
-            ["Gastos de boda", "Fecha", "Categoria", "Proveedor", "Total Q", "Abonado Q", "Pendiente Q"]
-        )
-        for row in report["wedding"]["expenses"]:
-            writer.writerow(
-                [
-                    row["description"],
-                    row["date"],
-                    row["category"],
-                    row["vendor"],
-                    row["amount"],
-                    row["paid"],
-                    row["pending"],
-                ]
-            )
-        writer.writerow([])
         writer.writerow(["Gastos principales", "Fecha", "Categoria", "Cuenta", "Monto Q"])
         for row in report["topExpenses"]:
             writer.writerow(
@@ -2150,24 +2134,6 @@ def build_reports(month: str) -> dict:
             WHERE active=1
             """
         ).fetchall()
-        wedding_rows = conn.execute(
-            """
-            SELECT
-              e.id,
-              e.date,
-              e.description,
-              e.category,
-              e.vendor,
-              e.amount,
-              COALESCE(SUM(p.amount), 0) AS paid_amount
-            FROM wedding_expenses e
-            LEFT JOIN wedding_payments p ON p.expense_id = e.id
-            WHERE substr(e.date,1,7)=?
-            GROUP BY e.id
-            ORDER BY e.amount DESC, e.date DESC
-            """,
-            (last_month,),
-        ).fetchall()
 
     trend = []
     for item_month in months:
@@ -2262,27 +2228,6 @@ def build_reports(month: str) -> dict:
         key=lambda item: item["amount"],
         reverse=True,
     )[:8]
-    wedding_expenses = []
-    wedding_total = 0.0
-    wedding_paid = 0.0
-    for row in wedding_rows:
-        amount = float(row["amount"])
-        paid_amount = min(float(row["paid_amount"]), amount)
-        wedding_total += amount
-        wedding_paid += paid_amount
-        wedding_expenses.append(
-            {
-                "id": row["id"],
-                "date": row["date"],
-                "description": row["description"],
-                "category": row["category"],
-                "vendor": row["vendor"],
-                "amount": amount,
-                "paid": paid_amount,
-                "pending": max(0, amount - paid_amount),
-            }
-        )
-
     return {
         "month": last_month,
         "summary": {
@@ -2311,13 +2256,6 @@ def build_reports(month: str) -> dict:
             by_payment_method.items(), key=lambda item: item[1], reverse=True
         ),
         "topExpenses": top_expenses,
-        "wedding": {
-            "total": round(wedding_total, 2),
-            "paid": round(wedding_paid, 2),
-            "pending": round(max(0, wedding_total - wedding_paid), 2),
-            "count": len(wedding_expenses),
-            "expenses": wedding_expenses,
-        },
     }
 
 

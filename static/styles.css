@@ -1842,23 +1842,6 @@ td select {
   min-width: 900px;
 }
 
-.report-wedding-kpis {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.report-wedding-table {
-  min-width: 1080px;
-}
-
-.report-wedding-table th:nth-child(5),
-.report-wedding-table th:nth-child(6),
-.report-wedding-table th:nth-child(7),
-.report-wedding-table td:nth-child(5),
-.report-wedding-table td:nth-child(6),
-.report-wedding-table td:nth-child(7) {
-  text-align: right;
-}
-
 .report-expenses-table th:last-child,
 .report-expenses-table td:last-child {
   text-align: right;

@@ -28,13 +28,6 @@ const state = {
     byAccount: [],
     byPaymentMethod: [],
     topExpenses: [],
-    wedding: {
-      total: 0,
-      paid: 0,
-      pending: 0,
-      count: 0,
-      expenses: [],
-    },
   },
   exchangeRate: null,
   deleteTransactionId: null,
@@ -473,32 +466,6 @@ function renderReports() {
     "Sin gastos recurrentes configurados.",
   );
   renderReportBreakdown("reportAccountFlow", data.byAccount || [], "Sin movimientos por cuenta.");
-
-  const wedding = data.wedding || {};
-  $("reportWeddingTotal").textContent = fmtMoney.format(wedding.total || 0);
-  $("reportWeddingPaid").textContent = fmtMoney.format(wedding.paid || 0);
-  $("reportWeddingPending").textContent = fmtMoney.format(wedding.pending || 0);
-  $("reportWeddingCount").textContent = `${wedding.count || 0} ${
-    Number(wedding.count || 0) === 1 ? "registro" : "registros"
-  }`;
-  const weddingExpenses = wedding.expenses || [];
-  $("reportWeddingExpenses").innerHTML =
-    weddingExpenses.length === 0
-      ? `<tr><td class="empty" colspan="7">Sin gastos de boda registrados en este mes.</td></tr>`
-      : weddingExpenses
-          .map(
-            (expense) => `
-              <tr>
-                <td>${escapeHtml(expense.date)}</td>
-                <td class="description">${escapeHtml(expense.description)}</td>
-                <td>${escapeHtml(expense.category)}</td>
-                <td>${escapeHtml(expense.vendor || "-")}</td>
-                <td class="money">${fmtMoney.format(expense.amount)}</td>
-                <td class="money amount-income">${fmtMoney.format(expense.paid)}</td>
-                <td class="money amount-saving">${fmtMoney.format(expense.pending)}</td>
-              </tr>`,
-          )
-          .join("");
 
   const topExpenses = data.topExpenses || [];
   $("reportTopExpenses").innerHTML =
