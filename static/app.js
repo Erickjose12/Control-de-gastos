@@ -781,9 +781,9 @@ function setActiveView(viewId) {
   });
   const titles = {
     summaryView: ["Dashboard", "Resumen mensual de ingresos, gastos y ahorro."],
-    movementsView: ["Movimientos financieros", "Importa estados de cuenta, registra ajustes y revisa movimientos."],
-    recurringView: ["Gastos recurrentes", "Controla pagos mensuales, suscripciones y renovaciones anuales."],
-    savingsAccountView: ["Ahorros", "Seguimiento mensual de la cuenta Banrural usada para ahorro."],
+    movementsView: ["Movimientos mensuales", "Importa estados de cuenta, registra ajustes y revisa movimientos."],
+    recurringView: ["Gastos mensuales fijos", "Controla pagos mensuales, suscripciones y renovaciones anuales."],
+    savingsAccountView: ["Ahorros mensuales", "Seguimiento mensual de la cuenta Banrural usada para ahorro."],
     savingsView: ["Venta dolares", "Seguimiento de ventas USD registradas manualmente."],
     weddingView: ["Gastos de boda", "Presupuesto, abonos y proveedores del evento."],
     reportsView: ["Reportes", "Analiza tendencias, categorias y comportamiento mensual."],
