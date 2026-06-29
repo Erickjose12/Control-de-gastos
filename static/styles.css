@@ -646,6 +646,14 @@ select:focus {
   padding: 18px 20px 20px;
 }
 
+#savingsForm {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.savings-half-field {
+  grid-column: span 2;
+}
+
 .wide-field {
   grid-column: 1 / -1;
 }
@@ -857,6 +865,10 @@ table {
 .saving-sale-table,
 .savings-table {
   min-width: 1180px;
+}
+
+.savings-table .col-actions {
+  width: 285px;
 }
 
 .col-date {
@@ -1086,6 +1098,20 @@ td.money {
   margin-right: 4px;
   min-height: 26px;
   padding: 4px 6px;
+}
+
+.savings-table .actions-cell {
+  display: flex;
+  gap: 6px;
+  min-width: 260px;
+  white-space: nowrap;
+}
+
+.savings-table .table-action {
+  font-size: 11px;
+  margin-right: 0;
+  min-height: 28px;
+  padding: 4px 8px;
 }
 
 .recurring-table th:nth-child(5),
@@ -1947,6 +1973,10 @@ td select {
 
   .manual-form {
     grid-template-columns: 1fr;
+  }
+
+  .savings-half-field {
+    grid-column: auto;
   }
 
   .budget-form,
