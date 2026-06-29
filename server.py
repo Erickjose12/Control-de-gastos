@@ -1911,6 +1911,48 @@ class App(BaseHTTPRequestHandler):
         writer.writerow(["Ahorro", report["summary"]["savings"]])
         writer.writerow(["Resultado", report["summary"]["balance"]])
         writer.writerow([])
+        writer.writerow(["Comparativo mes contra mes", "Actual Q", "Anterior Q", "Diferencia Q", "Cambio %"])
+        for label, key in (
+            ("Ingresos", "income"),
+            ("Gastos", "expenses"),
+            ("Ahorro", "savings"),
+            ("Resultado", "balance"),
+        ):
+            metric = report["comparison"][key]
+            writer.writerow(
+                [
+                    label,
+                    metric["current"],
+                    metric["previous"],
+                    metric["delta"],
+                    round(metric["percent"] * 100, 2),
+                ]
+            )
+        writer.writerow([])
+        writer.writerow(
+            [
+                "Resumen por banco",
+                "Ingresos Q",
+                "Gastos Q",
+                "Ahorro Q",
+                "Transferencias Q",
+                "Neto Q",
+                "Movimientos",
+            ]
+        )
+        for row in report["byBank"]:
+            writer.writerow(
+                [
+                    row["bank"],
+                    row["income"],
+                    row["expenses"],
+                    row["savings"],
+                    row["transfers"],
+                    row["net"],
+                    row["count"],
+                ]
+            )
+        writer.writerow([])
         writer.writerow(["Comparacion mensual", "Ingresos", "Gastos", "Ahorro", "Resultado"])
         for row in report["trend"]:
             writer.writerow(
@@ -2146,6 +2188,7 @@ def build_reports(month: str) -> dict:
     selected_rows = [row for row in rows if row["date"][:7] == last_month]
     by_category: dict[str, float] = {}
     by_account: dict[str, float] = {}
+    by_bank: dict[str, dict[str, float | int]] = {}
     for row in selected_rows:
         if row["type"] == "Gasto":
             by_category[row["category"]] = by_category.get(row["category"], 0) + row["amount"]
@@ -2153,6 +2196,31 @@ def build_reports(month: str) -> dict:
             continue
         delta = row["amount"] if row["type"] in ("Ingreso", "Ahorro") else -row["amount"]
         by_account[row["account"]] = by_account.get(row["account"], 0) + delta
+        bank_name = bank_from_account(row["account"])
+        bank_row = by_bank.setdefault(
+            bank_name,
+            {
+                "income": 0.0,
+                "expenses": 0.0,
+                "savings": 0.0,
+                "transfers": 0.0,
+                "net": 0.0,
+                "count": 0,
+            },
+        )
+        bank_row["count"] += 1
+        if row["type"] == "Ingreso":
+            bank_row["income"] += row["amount"]
+            bank_row["net"] += row["amount"]
+        elif row["type"] == "Gasto":
+            bank_row["expenses"] += row["amount"]
+            bank_row["net"] -= row["amount"]
+        elif row["type"] == "Ahorro":
+            bank_row["savings"] += row["amount"]
+            bank_row["net"] += row["amount"]
+        elif row["type"] == "Transferencia":
+            bank_row["transfers"] += row["amount"]
+            bank_row["net"] -= row["amount"]
 
     by_payment_method: dict[str, float] = {}
     for row in recurring_rows:
@@ -2166,6 +2234,19 @@ def build_reports(month: str) -> dict:
         if previous["expenses"]
         else 0
     )
+
+    def compare_metric(key: str) -> dict:
+        current = float(selected.get(key, 0) or 0)
+        previous_value = float(previous.get(key, 0) or 0)
+        delta = current - previous_value
+        percent = delta / previous_value if previous_value else 0
+        return {
+            "current": round(current, 2),
+            "previous": round(previous_value, 2),
+            "delta": round(delta, 2),
+            "percent": percent,
+        }
+
     top_expenses = sorted(
         [
             {
@@ -2210,8 +2291,22 @@ def build_reports(month: str) -> dict:
             "expenseChange": expense_change,
         },
         "trend": trend,
+        "comparison": {
+            "currentMonth": last_month,
+            "previousMonth": previous.get("month", ""),
+            "income": compare_metric("income"),
+            "expenses": compare_metric("expenses"),
+            "savings": compare_metric("savings"),
+            "balance": compare_metric("balance"),
+        },
         "byCategory": sorted(by_category.items(), key=lambda item: item[1], reverse=True),
         "byAccount": sorted(by_account.items(), key=lambda item: item[0]),
+        "byBank": [
+            {"bank": bank, **values}
+            for bank, values in sorted(
+                by_bank.items(), key=lambda item: abs(float(item[1]["net"])), reverse=True
+            )
+        ],
         "byPaymentMethod": sorted(
             by_payment_method.items(), key=lambda item: item[1], reverse=True
         ),

@@ -469,7 +469,10 @@
               <h2>Lectura del mes seleccionado</h2>
               <p>Movimientos, venta dolares, recurrentes y gastos de boda.</p>
             </div>
-            <button id="exportReportBtn" class="ghost" type="button">Exportar CSV</button>
+            <div class="report-actions">
+              <button id="printReportBtn" class="ghost" type="button">Imprimir / PDF</button>
+              <button id="exportReportBtn" class="ghost" type="button">Exportar CSV</button>
+            </div>
           </section>
 
           <section class="kpis report-kpis" aria-label="Resumen del reporte">
@@ -489,6 +492,27 @@
               <span>Resultado del mes</span>
               <strong id="reportBalanceKpi">Q0.00</strong>
             </article>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Comparativo mes contra mes</h2>
+                <p>Diferencia contra el mes anterior para detectar subidas y bajadas.</p>
+              </div>
+              <span id="reportComparisonLabel" class="report-change">Sin comparacion</span>
+            </div>
+            <div id="reportComparison" class="report-comparison-grid"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Resumen por banco</h2>
+                <p>Ingresos, gastos, neto y cantidad de movimientos por banco.</p>
+              </div>
+            </div>
+            <div id="reportBankSummary" class="report-bank-summary"></div>
           </section>
 
           <section class="report-grid report-grid-main">

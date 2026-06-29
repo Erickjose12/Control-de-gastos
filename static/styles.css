@@ -1509,6 +1509,13 @@ td select {
   margin-top: 5px;
 }
 
+.report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .report-kpis {
   margin-top: 14px;
 }
@@ -1538,6 +1545,157 @@ td select {
   background: rgba(255, 95, 104, 0.1);
   border-color: rgba(255, 95, 104, 0.26);
   color: var(--red);
+}
+
+.report-change.neutral {
+  background: var(--field);
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+.report-comparison-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 16px 20px 20px;
+}
+
+.comparison-card {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: grid;
+  gap: 7px;
+  padding: 14px;
+}
+
+.comparison-card.positive {
+  border-color: rgba(30, 213, 155, 0.35);
+}
+
+.comparison-card.negative {
+  border-color: rgba(255, 95, 104, 0.35);
+}
+
+.comparison-card span,
+.comparison-card small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.comparison-card span {
+  text-transform: uppercase;
+}
+
+.comparison-card strong {
+  color: var(--ink);
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 21px;
+}
+
+.comparison-card em {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.comparison-card.positive em {
+  color: var(--green);
+}
+
+.comparison-card.negative em {
+  color: var(--red);
+}
+
+.comparison-card.neutral em {
+  color: var(--muted);
+}
+
+.report-bank-summary {
+  display: grid;
+  gap: 0;
+}
+
+.report-bank-card {
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+  padding: 16px 20px;
+}
+
+.report-bank-card:last-child {
+  border-bottom: 0;
+}
+
+.report-bank-card-head {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+}
+
+.report-bank-card-head div {
+  display: grid;
+  gap: 4px;
+}
+
+.report-bank-card-head strong {
+  color: var(--ink);
+}
+
+.report-bank-card-head small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.report-bank-card-head span {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 16px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.report-bank-card-head .positive {
+  color: var(--green);
+}
+
+.report-bank-card-head .negative {
+  color: var(--red);
+}
+
+.report-bank-metrics {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.report-bank-metrics span {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  display: grid;
+  font-size: 12px;
+  font-weight: 900;
+  gap: 3px;
+  padding: 10px;
+}
+
+.report-bank-metrics .income {
+  border-color: rgba(30, 213, 155, 0.35);
+  color: var(--green);
+}
+
+.report-bank-metrics .expense {
+  border-color: rgba(255, 95, 104, 0.35);
+  color: var(--red);
+}
+
+.report-bank-metrics small {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
 }
 
 .report-trend-chart {
@@ -1771,6 +1929,11 @@ td select {
     grid-template-columns: 1fr;
   }
 
+  .report-comparison-grid,
+  .report-bank-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .topbar {
     align-items: flex-start;
     display: grid;
@@ -1842,6 +2005,11 @@ td select {
     flex-direction: column;
   }
 
+  .report-comparison-grid,
+  .report-bank-metrics {
+    grid-template-columns: 1fr;
+  }
+
   .report-trend-chart {
     gap: 8px;
     grid-template-columns: repeat(6, minmax(38px, 1fr));
@@ -1853,5 +2021,44 @@ td select {
 
   .report-wedding-kpis {
     grid-template-columns: 1fr;
+  }
+}
+
+@media print {
+  body {
+    background: #fff;
+    color: #111827;
+  }
+
+  .sidebar,
+  .topbar,
+  .view-section:not(#reportsView),
+  .report-actions {
+    display: none !important;
+  }
+
+  .shell {
+    display: block;
+  }
+
+  .app {
+    padding: 0;
+  }
+
+  #reportsView {
+    display: block !important;
+  }
+
+  .panel,
+  .kpi,
+  .comparison-card {
+    background: #fff;
+    border-color: #d8dee8;
+    box-shadow: none;
+    break-inside: avoid;
+  }
+
+  .table-wrap {
+    overflow: visible;
   }
 }

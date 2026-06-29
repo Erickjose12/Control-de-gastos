@@ -354,6 +354,22 @@ function renderReportBreakdown(targetId, rows, emptyText) {
           .join("");
 }
 
+function renderComparisonCard(label, metric, toneWhenUp = "positive") {
+  const delta = Number(metric?.delta || 0);
+  const percent = Number(metric?.percent || 0);
+  const tone =
+    delta === 0 ? "neutral" : delta > 0 ? toneWhenUp : toneWhenUp === "positive" ? "negative" : "positive";
+  const sign = delta > 0 ? "+" : "";
+  const percentText = delta === 0 ? "0%" : `${sign}${Math.round(percent * 100)}%`;
+  return `
+    <article class="comparison-card ${tone}">
+      <span>${escapeHtml(label)}</span>
+      <strong>${fmtMoney.format(metric?.current || 0)}</strong>
+      <small>Antes: ${fmtMoney.format(metric?.previous || 0)}</small>
+      <em>${sign}${fmtMoney.format(delta)} · ${percentText}</em>
+    </article>`;
+}
+
 function renderReports() {
   const data = state.reports;
   const summary = data.summary || {};
@@ -370,6 +386,45 @@ function renderReports() {
       ? "Sin cambio vs. mes anterior"
       : `${expenseChange > 0 ? "+" : ""}${Math.round(expenseChange * 100)}% gastos vs. mes anterior`;
   $("reportExpenseChange").className = `report-change ${expenseChange > 0 ? "negative" : "positive"}`;
+
+  const comparison = data.comparison || {};
+  $("reportComparisonLabel").textContent =
+    comparison.previousMonth && comparison.currentMonth
+      ? `${reportMonthLabel(comparison.previousMonth)} vs. ${reportMonthLabel(comparison.currentMonth)}`
+      : "Sin comparacion";
+  $("reportComparison").innerHTML = `
+    ${renderComparisonCard("Ingresos", comparison.income, "positive")}
+    ${renderComparisonCard("Gastos", comparison.expenses, "negative")}
+    ${renderComparisonCard("Ahorro", comparison.savings, "positive")}
+    ${renderComparisonCard("Resultado", comparison.balance, "positive")}
+  `;
+
+  const banks = data.byBank || [];
+  $("reportBankSummary").innerHTML =
+    banks.length === 0
+      ? `<p class="empty">Sin movimientos por banco en este mes.</p>`
+      : banks
+          .map((bank) => {
+            const tone = Number(bank.net || 0) >= 0 ? "positive" : "negative";
+            const movementLabel = Number(bank.count || 0) === 1 ? "movimiento" : "movimientos";
+            return `
+              <article class="report-bank-card">
+                <div class="report-bank-card-head">
+                  <div>
+                    <strong>${escapeHtml(bank.bank)}</strong>
+                    <small>${bank.count || 0} ${movementLabel}</small>
+                  </div>
+                  <span class="${tone}">${fmtMoney.format(bank.net || 0)}</span>
+                </div>
+                <div class="report-bank-metrics">
+                  <span class="income"><small>Ingresos</small>${fmtMoney.format(bank.income || 0)}</span>
+                  <span class="expense"><small>Gastos</small>${fmtMoney.format(bank.expenses || 0)}</span>
+                  <span><small>Ahorro</small>${fmtMoney.format(bank.savings || 0)}</span>
+                  <span><small>Transferencias</small>${fmtMoney.format(bank.transfers || 0)}</span>
+                </div>
+              </article>`;
+          })
+          .join("");
 
   const trend = data.trend || [];
   const maxValue = Math.max(
@@ -471,6 +526,10 @@ function exportReportCsv() {
   document.body.appendChild(link);
   link.click();
   link.remove();
+}
+
+function printReport() {
+  window.print();
 }
 
 function savingSaleRows() {
@@ -1009,6 +1068,7 @@ $("savingSaleSearch").addEventListener("input", renderSavingSales);
 $("recurringSearch").addEventListener("input", renderRecurring);
 $("weddingSearch").addEventListener("input", renderWedding);
 $("exportReportBtn").addEventListener("click", exportReportCsv);
+$("printReportBtn").addEventListener("click", printReport);
 
 $("recurringForm").addEventListener("submit", async (event) => {
   event.preventDefault();
