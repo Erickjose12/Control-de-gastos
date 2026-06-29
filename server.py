@@ -59,7 +59,7 @@ EXPENSE_CATEGORIES = [
     "Otros gastos",
 ]
 SAVINGS_CATEGORIES = ["Ahorro Banrural", "Ahorro extra"]
-TRANSFER_CATEGORIES = ["Pago tarjeta", "Transferencia entre cuentas", "Retiro efectivo"]
+TRANSFER_CATEGORIES = ["Pago tarjeta", "Transferencia entre cuentas", "Retiro efectivo", "Fondo mensual"]
 CATEGORIES = INCOME_CATEGORIES + EXPENSE_CATEGORIES + SAVINGS_CATEGORIES + TRANSFER_CATEGORIES
 TRANSACTION_TYPES = ["Ingreso", "Gasto", "Ahorro", "Venta USD", "Transferencia"]
 WEDDING_CATEGORIES = [

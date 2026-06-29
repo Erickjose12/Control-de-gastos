@@ -38,6 +38,9 @@ const state = {
 
 const DOLLAR_SALE_ACCOUNT = "BAC - Cuenta ahorro USD";
 const SAVINGS_ACCOUNT = "Banrural - Cuenta ahorro";
+const FUND_ACCOUNT = "GYT - Cuenta ahorro sueldo";
+const FUND_CATEGORY = "Fondo mensual";
+const FUND_MONTHLY_AMOUNT = 500;
 
 const fmtMoney = new Intl.NumberFormat("es-GT", {
   style: "currency",
@@ -132,6 +135,7 @@ async function load() {
   $("manualAccount").innerHTML = optionList([DOLLAR_SALE_ACCOUNT], DOLLAR_SALE_ACCOUNT);
   $("manualForm").elements.date.value = defaultDateForSelectedMonth();
   $("savingsForm").elements.date.value = defaultDateForSelectedMonth();
+  $("fundForm").elements.date.value = defaultDateForSelectedMonth();
   setWeddingDefaultDates();
   updateManualDefaults();
   bindNavigation();
@@ -245,6 +249,7 @@ function renderDashboard() {
           .join("");
   updateBulkDeleteState();
   renderSavingsAccount();
+  renderFunds();
   renderSavingSales();
 }
 
@@ -564,6 +569,55 @@ function renderSavingsAccount() {
           .join("");
 }
 
+function fundRows() {
+  const transactions = state.dashboard?.transactions || [];
+  return transactions.filter(
+    (tx) => tx.account === FUND_ACCOUNT && tx.type === "Transferencia" && tx.category === FUND_CATEGORY,
+  );
+}
+
+function renderFunds() {
+  const rows = fundRows();
+  const paid = rows.reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+  const pending = Math.max(0, FUND_MONTHLY_AMOUNT - paid);
+  $("fundExpectedKpi").textContent = fmtMoney.format(FUND_MONTHLY_AMOUNT);
+  $("fundPaidKpi").textContent = fmtMoney.format(paid);
+  $("fundPendingKpi").textContent = fmtMoney.format(pending);
+  $("fundCountKpi").textContent = rows.length;
+
+  const query = normalizeSearch($("fundSearch").value);
+  const filteredRows = rows.filter((tx) =>
+    matchesSearch([tx.date, tx.type, tx.account, tx.description, fmtMoney.format(tx.amount)], query),
+  );
+
+  $("fundBody").innerHTML =
+    rows.length === 0
+      ? `<tr><td class="empty" colspan="6">Sin aportes al fondo en este mes.</td></tr>`
+      : filteredRows.length === 0
+        ? `<tr><td class="empty" colspan="6">No hay fondos que coincidan con la busqueda.</td></tr>`
+        : filteredRows
+          .map(
+            (tx) => `
+            <tr data-id="${tx.id}">
+              <td>${escapeHtml(tx.date)}</td>
+              <td>Aporte</td>
+              <td>${escapeHtml(tx.account)}</td>
+              <td class="description">${escapeHtml(tx.description)}</td>
+              <td class="money amount-transfer">${fmtMoney.format(tx.amount)}</td>
+              <td class="actions-cell">
+                ${
+                  tx.attachment_path
+                    ? `<button class="table-action success-text" type="button" data-fund-action="view-attachment" data-attachment-name="${escapeHtml(tx.attachment_name || "Boleta")}" data-attachment-mime="${escapeHtml(tx.attachment_mime || "")}">Ver</button>
+                       <button class="table-action" type="button" data-fund-action="attach">Cambiar</button>`
+                    : `<button class="table-action" type="button" data-fund-action="attach">Adjuntar</button>`
+                }
+                <button class="table-action danger-text" type="button" data-fund-action="delete">Eliminar</button>
+              </td>
+            </tr>`,
+          )
+          .join("");
+}
+
 function savingSaleRows() {
   const transactions = state.dashboard?.transactions || [];
   return transactions.filter((tx) => !tx.source_import_id && tx.type === "Venta USD");
@@ -790,6 +844,7 @@ function setActiveView(viewId) {
     movementsView: ["Movimientos mensuales", "Importa estados de cuenta, registra ajustes y revisa movimientos."],
     recurringView: ["Gastos mensuales fijos", "Controla pagos mensuales, suscripciones y renovaciones anuales."],
     savingsAccountView: ["Ahorros mensuales", "Seguimiento mensual de la cuenta Banrural usada para ahorro."],
+    fundsView: ["Fondos", "Control mensual del fondo debitado desde GYT."],
     savingsView: ["Venta dolares", "Seguimiento de ventas USD registradas manualmente."],
     weddingView: ["Gastos de boda", "Presupuesto, abonos y proveedores del evento."],
     reportsView: ["Reportes", "Analiza tendencias, categorias y comportamiento mensual."],
@@ -1080,6 +1135,33 @@ $("savingsForm").addEventListener("submit", async (event) => {
   await loadDashboard();
 });
 
+$("fundForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  form.elements.type.value = "Transferencia";
+  form.elements.category.value = FUND_CATEGORY;
+  form.elements.account.value = FUND_ACCOUNT;
+  const formData = new FormData(form);
+  const data = Object.fromEntries(formData.entries());
+  $("fundStatus").textContent = "Guardando aporte...";
+  await api("/api/transactions", {
+    method: "POST",
+    body: formData,
+  });
+  $("fundStatus").textContent = "Aporte guardado.";
+  if (data.date) {
+    $("monthInput").value = data.date.slice(0, 7);
+  }
+  form.reset();
+  form.elements.date.value = defaultDateForSelectedMonth();
+  form.elements.type.value = "Transferencia";
+  form.elements.category.value = FUND_CATEGORY;
+  form.elements.account.value = FUND_ACCOUNT;
+  form.elements.amount.value = FUND_MONTHLY_AMOUNT.toFixed(2);
+  form.elements.description.value = "Aporte mensual a fondo";
+  await loadDashboard();
+});
+
 $("clearImportsBtn").addEventListener("click", async () => {
   await clearImportDraft("Bandeja limpia.");
 });
@@ -1120,6 +1202,7 @@ $("deleteSelectedBtn").addEventListener("click", askDeleteSelectedTransactions);
 $("importsSearch").addEventListener("input", renderImports);
 $("transactionsSearch").addEventListener("input", renderDashboard);
 $("savingsSearch").addEventListener("input", renderSavingsAccount);
+$("fundSearch").addEventListener("input", renderFunds);
 $("savingSaleSearch").addEventListener("input", renderSavingSales);
 $("recurringSearch").addEventListener("input", renderRecurring);
 $("weddingSearch").addEventListener("input", renderWedding);
@@ -1275,6 +1358,37 @@ $("savingsBody").addEventListener("click", async (event) => {
   }
 });
 
+$("fundBody").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-fund-action]");
+  if (!button) return;
+  const transactionId = button.closest("tr").dataset.id;
+  if (button.dataset.fundAction === "view-attachment") {
+    showTransactionAttachment(
+      transactionId,
+      button.dataset.attachmentName || "Boleta adjunta",
+      button.dataset.attachmentMime || "",
+    );
+  } else if (button.dataset.fundAction === "attach") {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".pdf,.png,.jpg,.jpeg,.jfif,.webp,.gif,.bmp,.tif,.tiff,.heic,.heif,application/pdf,image/*";
+    input.addEventListener("change", async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const payload = new FormData();
+      payload.append("attachment", file);
+      await api(`/api/transactions/${transactionId}/attachment`, {
+        method: "POST",
+        body: payload,
+      });
+      await loadDashboard();
+    });
+    input.click();
+  } else if (button.dataset.fundAction === "delete") {
+    await askDeleteTransaction(transactionId);
+  }
+});
+
 $("weddingExpensesBody").addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-wedding-action]");
   if (!button) return;
@@ -1381,6 +1495,7 @@ document.querySelectorAll("[data-close-modal]").forEach((element) => {
 $("monthInput").addEventListener("change", () => {
   $("manualForm").elements.date.value = defaultDateForSelectedMonth();
   $("savingsForm").elements.date.value = defaultDateForSelectedMonth();
+  $("fundForm").elements.date.value = defaultDateForSelectedMonth();
   loadDashboard();
   loadRecurring();
   loadReports();

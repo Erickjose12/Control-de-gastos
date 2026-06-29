@@ -650,7 +650,15 @@ select:focus {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+#fundForm {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .savings-half-field {
+  grid-column: span 2;
+}
+
+.fund-half-field {
   grid-column: span 2;
 }
 
@@ -863,11 +871,13 @@ table {
 }
 
 .saving-sale-table,
-.savings-table {
+.savings-table,
+.fund-table {
   min-width: 1180px;
 }
 
-.savings-table .col-actions {
+.savings-table .col-actions,
+.fund-table .col-actions {
   width: 285px;
 }
 
@@ -1030,7 +1040,9 @@ td.money {
 .saving-sale-table th:last-child,
 .saving-sale-table td.money,
 .savings-table th:last-child,
-.savings-table td.money {
+.savings-table td.money,
+.fund-table th:last-child,
+.fund-table td.money {
   padding-left: 12px;
   text-align: left;
 }
@@ -1100,14 +1112,16 @@ td.money {
   padding: 4px 6px;
 }
 
-.savings-table .actions-cell {
+.savings-table .actions-cell,
+.fund-table .actions-cell {
   display: flex;
   gap: 6px;
   min-width: 260px;
   white-space: nowrap;
 }
 
-.savings-table .table-action {
+.savings-table .table-action,
+.fund-table .table-action {
   font-size: 11px;
   margin-right: 0;
   min-height: 28px;
@@ -1975,7 +1989,8 @@ td select {
     grid-template-columns: 1fr;
   }
 
-  .savings-half-field {
+  .savings-half-field,
+  .fund-half-field {
     grid-column: auto;
   }
 

@@ -22,6 +22,7 @@
           <button class="nav-item" type="button" data-view="movementsView">Movimientos mensuales</button>
           <button class="nav-item" type="button" data-view="recurringView">Gastos mensuales fijos</button>
           <button class="nav-item" type="button" data-view="savingsAccountView">Ahorros mensuales</button>
+          <button class="nav-item" type="button" data-view="fundsView">Fondos</button>
           <button class="nav-item" type="button" data-view="savingsView">Venta dolares</button>
           <button class="nav-item" type="button" data-view="weddingView">Gastos de boda</button>
           <button class="nav-item" type="button" data-view="reportsView">Reportes</button>
@@ -462,6 +463,98 @@
                   </tr>
                 </thead>
                 <tbody id="savingsBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section id="fundsView" class="view-section">
+          <section class="kpis compact-kpis funds-kpis" aria-label="Resumen de fondos">
+            <article class="kpi rate">
+              <span>Aporte esperado</span>
+              <strong id="fundExpectedKpi">Q500.00</strong>
+            </article>
+            <article class="kpi income">
+              <span>Aportado este mes</span>
+              <strong id="fundPaidKpi">Q0.00</strong>
+            </article>
+            <article class="kpi balance">
+              <span>Pendiente</span>
+              <strong id="fundPendingKpi">Q500.00</strong>
+            </article>
+            <article class="kpi">
+              <span>Registros</span>
+              <strong id="fundCountKpi">0</strong>
+            </article>
+          </section>
+
+          <section class="panel manual-panel">
+            <div class="panel-head">
+              <h2>Registrar aporte a fondo</h2>
+            </div>
+            <form id="fundForm" class="manual-form" enctype="multipart/form-data">
+              <input name="type" type="hidden" value="Transferencia" />
+              <input name="category" type="hidden" value="Fondo mensual" />
+              <input name="account" type="hidden" value="GYT - Cuenta ahorro sueldo" />
+              <label>
+                Fecha
+                <input name="date" type="date" required />
+              </label>
+              <label>
+                Cuenta origen
+                <input type="text" value="GYT - Cuenta ahorro sueldo" disabled />
+              </label>
+              <label>
+                Monto Q
+                <input name="amount" type="number" min="0.01" step="0.01" value="500.00" required />
+              </label>
+              <label class="fund-half-field">
+                Descripcion
+                <input name="description" type="text" maxlength="75" value="Aporte mensual a fondo" placeholder="Descripcion" />
+              </label>
+              <label class="fund-half-field">
+                Boleta o evidencia
+                <input name="attachment" type="file" accept=".pdf,.png,.jpg,.jpeg,.jfif,.webp,.gif,.bmp,.tif,.tiff,.heic,.heif,application/pdf,image/*" />
+              </label>
+              <button class="primary" type="submit">Guardar aporte</button>
+              <p id="fundStatus" class="status wide-field"></p>
+            </form>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Fondos del mes</h2>
+                <p>Aportes debitados desde la cuenta principal de GYT.</p>
+              </div>
+            </div>
+            <div class="table-tools">
+              <label>
+                Buscar fondo
+                <input id="fundSearch" type="search" placeholder="Fecha, descripcion, monto..." />
+              </label>
+            </div>
+            <div class="table-wrap">
+              <table class="fund-table">
+                <colgroup>
+                  <col class="col-date" />
+                  <col class="col-type" />
+                  <col class="col-account" />
+                  <col class="col-description" />
+                  <col class="col-money" />
+                  <col class="col-actions" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Tipo</th>
+                    <th>Cuenta</th>
+                    <th>Descripcion</th>
+                    <th>Monto</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="fundBody"></tbody>
               </table>
             </div>
           </section>
