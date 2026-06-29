@@ -507,6 +507,12 @@ function savingsAccountRows() {
   return transactions.filter((tx) => tx.account === SAVINGS_ACCOUNT && tx.type !== "Venta USD");
 }
 
+function savingsMovementLabel(type) {
+  if (["Ahorro", "Ingreso"].includes(type)) return "Entrada";
+  if (["Gasto", "Transferencia"].includes(type)) return "Salida";
+  return type;
+}
+
 function renderSavingsAccount() {
   const rows = savingsAccountRows();
   const inflow = rows
@@ -539,7 +545,7 @@ function renderSavingsAccount() {
             (tx) => `
             <tr data-id="${tx.id}">
               <td>${escapeHtml(tx.date)}</td>
-              <td>${escapeHtml(tx.type)}</td>
+              <td>${escapeHtml(savingsMovementLabel(tx.type))}</td>
               <td>${escapeHtml(tx.category)}</td>
               <td>${escapeHtml(tx.account)}</td>
               <td class="description">${escapeHtml(tx.description)}</td>
@@ -1055,19 +1061,22 @@ $("manualForm").addEventListener("submit", async (event) => {
 $("savingsForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
+  form.elements.category.value = form.elements.type.value === "Gasto" ? "Salida Banrural" : "Ahorro Banrural";
   const formData = new FormData(form);
   const data = Object.fromEntries(formData.entries());
-  $("savingsStatus").textContent = "Guardando ahorro...";
+  $("savingsStatus").textContent = data.type === "Gasto" ? "Guardando salida..." : "Guardando ahorro...";
   await api("/api/transactions", {
     method: "POST",
     body: formData,
   });
-  $("savingsStatus").textContent = "Ahorro guardado.";
+  $("savingsStatus").textContent = data.type === "Gasto" ? "Salida guardada." : "Ahorro guardado.";
   if (data.date) {
     $("monthInput").value = data.date.slice(0, 7);
   }
   form.reset();
   form.elements.date.value = defaultDateForSelectedMonth();
+  form.elements.type.value = "Ahorro";
+  form.elements.category.value = "Ahorro Banrural";
   await loadDashboard();
 });
 

@@ -392,7 +392,13 @@
               <h2>Registrar ahorro</h2>
             </div>
             <form id="savingsForm" class="manual-form" enctype="multipart/form-data">
-              <input name="type" type="hidden" value="Ahorro" />
+              <label>
+                Movimiento
+                <select name="type">
+                  <option value="Ahorro">Entrada</option>
+                  <option value="Gasto">Salida</option>
+                </select>
+              </label>
               <input name="category" type="hidden" value="Ahorro Banrural" />
               <input name="account" type="hidden" value="Banrural - Cuenta ahorro" />
               <label>
