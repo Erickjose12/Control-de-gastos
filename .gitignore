@@ -10,6 +10,10 @@ venv/
 env/
 
 # Local financial data
+data/*
+data_demo/*
+!data/.gitkeep
+!data_demo/.gitkeep
 data/*.db
 data/*.db-*
 data/*.sqlite
@@ -20,6 +24,11 @@ data/*.sqlite3
 *.csv
 *.xlsx
 *.xlsm
+*.xls
+*.png
+*.jpg
+*.jpeg
+*.webp
 
 # OS / editor
 .DS_Store
