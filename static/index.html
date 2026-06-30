@@ -7,15 +7,44 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
+    <section id="loginScreen" class="login-screen" aria-label="Acceso al sistema">
+      <form id="loginForm" class="login-card">
+        <div class="login-brand">
+          <span>F</span>
+          <div>
+            <strong>Finanzas Local</strong>
+            <small>Control privado</small>
+          </div>
+        </div>
+        <div>
+          <h1>Iniciar sesion</h1>
+          <p>Ingresa tus credenciales para ver tus datos financieros.</p>
+        </div>
+        <label>
+          Usuario
+          <input name="username" type="text" autocomplete="username" required />
+        </label>
+        <label>
+          Contrasena
+          <input name="password" type="password" autocomplete="current-password" required />
+        </label>
+        <button class="primary" type="submit">Entrar</button>
+        <p id="loginStatus" class="status"></p>
+      </form>
+    </section>
     <div class="shell">
       <aside class="sidebar">
         <div class="brand">
           <strong>Finanzas Local</strong>
           <span>Control personal</span>
-          <button id="themeToggle" class="theme-toggle" type="button" aria-label="Cambiar a modo claro">
-            <span class="theme-toggle-icon" aria-hidden="true">☾</span>
-            <span id="themeToggleText">Dark</span>
-          </button>
+          <div class="brand-actions" aria-label="Acciones de sesion y tema">
+            <button id="logoutBtn" class="logout-button" type="button">Salir</button>
+            <span class="brand-actions-separator" aria-hidden="true">/</span>
+            <button id="themeToggle" class="theme-toggle" type="button" aria-label="Cambiar a modo claro">
+              <span class="theme-toggle-icon" aria-hidden="true">☾</span>
+              <span id="themeToggleText">Dark</span>
+            </button>
+          </div>
         </div>
         <nav class="nav-menu" aria-label="Menu principal">
           <button class="nav-item active" type="button" data-view="summaryView">Dashboard</button>
@@ -25,6 +54,7 @@
           <button class="nav-item" type="button" data-view="fundsView">Fondos</button>
           <button class="nav-item" type="button" data-view="savingsView">Venta dolares</button>
           <button class="nav-item" type="button" data-view="weddingView">Gastos de boda</button>
+          <button class="nav-item" type="button" data-view="houseView">Pago de la casa</button>
           <button class="nav-item" type="button" data-view="reportsView">Reportes</button>
         </nav>
         <div class="sidebar-note">
@@ -177,6 +207,24 @@
                 <p id="importReviewSummary">Selecciona el archivo para revisar los movimientos antes de guardarlos.</p>
               </div>
               <button id="commitBtn" class="primary" type="button">Importar registros</button>
+            </div>
+            <div class="import-totals" aria-label="Resumen de creditos y debitos">
+              <article class="import-total-card credit">
+                <span>Creditos</span>
+                <strong id="importCreditTotal">Q 0.00</strong>
+              </article>
+              <article class="import-total-card debit">
+                <span>Debitos</span>
+                <strong id="importDebitTotal">Q 0.00</strong>
+              </article>
+              <article id="importNetCard" class="import-total-card net">
+                <span>Neto</span>
+                <strong id="importNetTotal">Q 0.00</strong>
+              </article>
+              <article class="import-total-card">
+                <span>Registros</span>
+                <strong id="importTotalCount">0</strong>
+              </article>
             </div>
             <div class="table-tools">
               <label>
@@ -661,11 +709,11 @@
           <section class="report-toolbar">
             <div>
               <h2>Lectura del mes seleccionado</h2>
-              <p>Movimientos, venta dolares, recurrentes y bancos.</p>
+              <p>Comparativo, bancos, categorias y gastos principales del mes.</p>
             </div>
             <div class="report-actions">
-              <button id="printReportBtn" class="ghost" type="button">Imprimir / PDF</button>
-              <button id="exportReportBtn" class="ghost" type="button">Exportar CSV</button>
+              <button id="exportReportPdfBtn" class="ghost" type="button">Exportar PDF</button>
+              <button id="exportReportExcelBtn" class="ghost" type="button">Exportar Excel</button>
             </div>
           </section>
 
@@ -797,7 +845,7 @@
                 <strong id="weddingDashBudget">Q0.00</strong>
               </article>
               <article class="kpi expense">
-                <span>Gastado</span>
+                <span>Debo</span>
                 <strong id="weddingDashSpent">Q0.00</strong>
               </article>
               <article class="kpi income">
@@ -845,7 +893,7 @@
                 <select id="weddingCategory" name="category"></select>
               </label>
               <label>
-                Fecha
+                Fecha de vencimiento
                 <input name="date" type="date" required />
               </label>
               <label>
@@ -880,7 +928,7 @@
             <div class="table-tools">
               <label>
                 Buscar gastos de boda
-                <input id="weddingSearch" type="search" placeholder="Fecha, concepto, categoria, proveedor, estado..." />
+                <input id="weddingSearch" type="search" placeholder="Vencimiento, concepto, categoria, proveedor, estado..." />
               </label>
             </div>
             <div class="table-wrap">
@@ -898,7 +946,7 @@
                 </colgroup>
                 <thead>
                   <tr>
-                    <th>Fecha</th>
+                    <th>Vencimiento</th>
                     <th>Concepto</th>
                     <th>Categoria</th>
                     <th>Proveedor</th>
@@ -910,6 +958,74 @@
                   </tr>
                 </thead>
                 <tbody id="weddingExpensesBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section id="houseView" class="view-section">
+          <section class="kpis compact-kpis" aria-label="Resumen de pagos de casa">
+            <article class="kpi expense">
+              <span>Pagado este mes</span>
+              <strong id="houseTotalKpi">Q0.00</strong>
+            </article>
+            <article class="kpi balance">
+              <span>Registros</span>
+              <strong id="houseCountKpi">0</strong>
+            </article>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Registrar pago de la casa</h2>
+            </div>
+            <form id="housePaymentForm" class="house-form" enctype="multipart/form-data">
+              <label>
+                Concepto
+                <input name="description" type="text" maxlength="90" placeholder="Ej. Cuota mensual" required />
+              </label>
+              <label>
+                Fecha pago
+                <input name="paymentDate" type="date" required />
+              </label>
+              <label>
+                Monto
+                <input name="amount" type="number" min="0.01" step="0.01" placeholder="0.00" required />
+              </label>
+              <label class="wide-field">
+                Documento o evidencia
+                <input name="attachment" type="file" accept=".pdf,.png,.jpg,.jpeg,.jfif,.webp,.gif,.bmp,.tif,.tiff,.heic,.heif,application/pdf,image/*" />
+              </label>
+              <button class="primary" type="submit">Guardar pago</button>
+              <p id="houseStatus" class="status wide-field"></p>
+            </form>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Pagos registrados</h2>
+                <p>Pagos de casa del mes seleccionado.</p>
+              </div>
+            </div>
+            <div class="table-tools">
+              <label>
+                Buscar pago
+                <input id="houseSearch" type="search" placeholder="Fecha, concepto, monto..." />
+              </label>
+            </div>
+            <div class="table-wrap">
+              <table class="house-table">
+                <thead>
+                  <tr>
+                    <th>Fecha pago</th>
+                    <th>Concepto</th>
+                    <th>Monto</th>
+                    <th>Documento</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="housePaymentsBody"></tbody>
               </table>
             </div>
           </section>
@@ -1044,6 +1160,27 @@
           <a id="weddingAttachmentOpenLink" class="ghost link-button" href="#" target="_blank" rel="noopener">Abrir aparte</a>
           <button class="primary" type="button" data-close-modal>Cerrar</button>
         </div>
+      </section>
+    </div>
+    <div id="houseAttachmentModal" class="modal" hidden>
+      <div class="modal-backdrop" data-close-modal></div>
+      <section class="modal-card small" role="dialog" aria-modal="true" aria-labelledby="houseAttachmentTitle">
+        <div class="modal-head">
+          <h2 id="houseAttachmentTitle">Adjuntar documento</h2>
+          <button class="icon-button" type="button" data-close-modal aria-label="Cerrar">X</button>
+        </div>
+        <form id="houseAttachmentForm" class="modal-form" enctype="multipart/form-data">
+          <input name="paymentId" type="hidden" />
+          <label class="wide-field">
+            PDF o imagen
+            <input name="attachment" type="file" accept=".pdf,.png,.jpg,.jpeg,.jfif,.webp,.gif,.bmp,.tif,.tiff,.heic,.heif,application/pdf,image/*" required />
+          </label>
+          <p id="houseAttachmentStatus" class="status wide-field"></p>
+          <div class="modal-actions form-actions">
+            <button class="ghost" type="button" data-close-modal>Cancelar</button>
+            <button class="primary" type="submit">Guardar archivo</button>
+          </div>
+        </form>
       </section>
     </div>
     <script src="/app.js"></script>

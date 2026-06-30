@@ -1,14 +1,23 @@
 from __future__ import annotations
 
 import csv
+import base64
+import hashlib
+import hmac
 import io
 import json
 import mimetypes
+import os
 import re
+import secrets
 import sqlite3
 import tempfile
+import time
+import zipfile
+from http import cookies
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from html import escape as xml_escape
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from urllib.request import urlopen
@@ -22,13 +31,59 @@ except Exception:  # pragma: no cover
 
 ROOT = Path(__file__).parent
 STATIC = ROOT / "static"
-DATA = ROOT / "data"
+DATA = Path(os.environ.get("FINANZAS_DATA_DIR", ROOT / "data"))
 DB = DATA / "finanzas.db"
 WEDDING_FILES = DATA / "wedding_files"
+HOUSE_FILES = DATA / "house_files"
 TRANSACTION_FILES = DATA / "transaction_files"
+DEMO_MODE = os.environ.get("FINANZAS_DEMO", "").lower() in {"1", "true", "yes", "demo"}
 EXCHANGE_RATE_URL = "https://open.er-api.com/v6/latest/USD"
 DEFAULT_USD_GTQ_RATE = 7.8
 LEGACY_WEDDING_DB = ROOT.parent / "Control-de-gastos-de-boda" / "data" / "boda.db"
+APP_HOST = os.environ.get("FINANZAS_HOST", "127.0.0.1")
+APP_PORT = int(os.environ.get("PORT", os.environ.get("FINANZAS_PORT", "8765")))
+AUTH_ENABLED = os.environ.get("FINANZAS_AUTH", "1").lower() not in {"0", "false", "no", "off"}
+AUTH_USER = os.environ.get("FINANZAS_USER", "erick")
+AUTH_PASSWORD = os.environ.get("FINANZAS_PASSWORD", "cambiar-esta-clave")
+AUTH_PASSWORD_HASH = os.environ.get("FINANZAS_PASSWORD_HASH", "")
+SESSION_SECRET = os.environ.get("FINANZAS_SESSION_SECRET") or hashlib.sha256(
+    f"{ROOT}|finanzas-local-dev".encode("utf-8")
+).hexdigest()
+SESSION_COOKIE = "finanzas_session"
+SESSION_TTL_SECONDS = int(os.environ.get("FINANZAS_SESSION_TTL", str(60 * 60 * 12)))
+SECURE_COOKIE = os.environ.get("FINANZAS_SECURE_COOKIE", "").lower() in {"1", "true", "yes", "on"}
+
+
+def password_matches(password: str) -> bool:
+    if AUTH_PASSWORD_HASH:
+        digest = hashlib.sha256(password.encode("utf-8")).hexdigest()
+        return hmac.compare_digest(digest, AUTH_PASSWORD_HASH)
+    return hmac.compare_digest(password, AUTH_PASSWORD)
+
+
+def make_session_token(username: str) -> str:
+    expires_at = int(time.time()) + SESSION_TTL_SECONDS
+    payload = f"{username}|{expires_at}|{secrets.token_hex(8)}"
+    signature = hmac.new(SESSION_SECRET.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    token = f"{payload}|{signature}".encode("utf-8")
+    return base64.urlsafe_b64encode(token).decode("ascii")
+
+
+def read_session_token(token: str | None) -> str | None:
+    if not token:
+        return None
+    try:
+        decoded = base64.urlsafe_b64decode(token.encode("ascii")).decode("utf-8")
+        username, expires_at_text, nonce, signature = decoded.rsplit("|", 3)
+        payload = f"{username}|{expires_at_text}|{nonce}"
+        expected = hmac.new(SESSION_SECRET.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(signature, expected):
+            return None
+        if int(expires_at_text) < int(time.time()):
+            return None
+        return username
+    except Exception:
+        return None
 
 ACCOUNTS = [
     "GYT - Cuenta ahorro sueldo",
@@ -124,6 +179,13 @@ RECURRING_SAMPLE_EXPENSES = [
     ("Cuota Casas", "Vivienda", "Efectivo", 1000.00, "Mensual"),
     ("CUOTA FONDO", "Ahorro", "Tarjeta de debito", 510.00, "Mensual"),
 ]
+DEMO_RECURRING_SAMPLE_EXPENSES = [
+    ("Internet casa", "Servicios", "TC", 325.00, "Mensual"),
+    ("Streaming familiar", "Suscripciones", "TC", 89.00, "Mensual"),
+    ("Gimnasio", "Salud y bienestar", "Tarjeta de debito", 180.00, "Mensual"),
+    ("Cuota vivienda", "Vivienda", "Efectivo", 1200.00, "Mensual"),
+    ("Respaldo nube", "Suscripciones", "TC", 240.00, "Anual"),
+]
 
 DATE_RE = re.compile(r"^(\d{2}/\d{2}/\d{4})\s+(\d+)\s+(.*)$")
 AMOUNT_RE = re.compile(r"(-?Q[\d,]+\.\d{2})\s+(Q[\d,]+\.\d{2})$")
@@ -151,6 +213,7 @@ def db_connection():
 def init_db() -> None:
     DATA.mkdir(parents=True, exist_ok=True)
     WEDDING_FILES.mkdir(parents=True, exist_ok=True)
+    HOUSE_FILES.mkdir(parents=True, exist_ok=True)
     TRANSACTION_FILES.mkdir(parents=True, exist_ok=True)
     with db_connection() as conn:
         conn.executescript(
@@ -212,6 +275,17 @@ def init_db() -> None:
               FOREIGN KEY (expense_id) REFERENCES wedding_expenses(id) ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS house_payments (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              payment_date TEXT NOT NULL,
+              description TEXT NOT NULL,
+              amount REAL NOT NULL CHECK (amount > 0),
+              attachment_name TEXT,
+              attachment_path TEXT,
+              attachment_mime TEXT,
+              created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS recurring_expenses (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               name TEXT NOT NULL,
@@ -244,9 +318,12 @@ def init_db() -> None:
         ensure_column(conn, "transactions", "attachment_path", "TEXT")
         ensure_column(conn, "transactions", "attachment_mime", "TEXT")
         migrate_existing_data(conn)
-        migrate_wedding_data(conn)
+        if not DEMO_MODE:
+            migrate_wedding_data(conn)
         seed_recurring_expenses(conn)
         migrate_recurring_accounts(conn)
+        if DEMO_MODE:
+            seed_demo_data(conn)
 
 
 def ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
@@ -260,14 +337,87 @@ def seed_recurring_expenses(conn: sqlite3.Connection) -> None:
     if count:
         return
     now = datetime.now().isoformat(timespec="seconds")
+    sample_expenses = DEMO_RECURRING_SAMPLE_EXPENSES if DEMO_MODE else RECURRING_SAMPLE_EXPENSES
     conn.executemany(
         """
         INSERT INTO recurring_expenses
         (name, category, account, amount, frequency, next_due_date, active, created_at)
         VALUES (?, ?, ?, ?, ?, NULL, 1, ?)
         """,
-        [(*expense, now) for expense in RECURRING_SAMPLE_EXPENSES],
+        [(*expense, now) for expense in sample_expenses],
     )
+
+
+def seed_demo_data(conn: sqlite3.Connection) -> None:
+    if conn.execute("SELECT COUNT(*) AS count FROM transactions").fetchone()["count"]:
+        return
+    now = datetime.now().isoformat(timespec="seconds")
+    conn.executemany(
+        """
+        INSERT INTO transactions
+        (date, type, category, description, account, amount, source_import_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, NULL, ?)
+        """,
+        [
+            ("2026-06-01", "Ingreso", "Sueldo GYT", "Deposito de salario principal", "GYT - Cuenta ahorro sueldo", 6500.00, now),
+            ("2026-06-05", "Ingreso", "Trabajo extra", "Pago de proyecto freelance", "Banco Industrial - Cuenta ahorro", 3500.00, now),
+            ("2026-06-08", "Gasto", "Supermercado", "Compra de despensa", "GYT - Tarjeta credito", 620.35, now),
+            ("2026-06-10", "Gasto", "Servicios", "Pago de internet residencial", "Banco Industrial - Cuenta ahorro", 325.00, now),
+            ("2026-06-12", "Gasto", "Comida fuera", "Cena familiar", "GYT - Tarjeta credito", 185.75, now),
+            ("2026-06-15", "Ahorro", "Ahorro Banrural", "Ahorro quincenal", "Banrural - Cuenta ahorro", 1200.00, now),
+            ("2026-06-18", "Gasto", "Otros gastos", "Compra de emergencia", "Banrural - Cuenta ahorro", 250.00, now),
+            ("2026-06-20", "Venta USD", "Venta USD", "Venta de dolares demo (USD 200, TC 7.80)", "BAC - Cuenta ahorro USD", 1560.00, now),
+            ("2026-06-25", "Transferencia", "Fondo mensual", "Aporte mensual a fondo", "GYT - Cuenta ahorro sueldo", 500.00, now),
+        ],
+    )
+    conn.execute(
+        """
+        INSERT INTO wedding_settings (key, value)
+        VALUES ('budget', '60000')
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+        """
+    )
+    wedding_count = conn.execute("SELECT COUNT(*) AS count FROM wedding_expenses").fetchone()["count"]
+    if not wedding_count:
+        for expense in WEDDING_SAMPLE_EXPENSES:
+            cursor = conn.execute(
+                """
+                INSERT INTO wedding_expenses
+                (date, description, category, vendor, amount, legacy_id, created_at)
+                VALUES (?, ?, ?, ?, ?, NULL, ?)
+                """,
+                (
+                    expense["date"],
+                    expense["description"],
+                    expense["category"],
+                    expense["vendor"],
+                    float(expense["amount"]),
+                    now,
+                ),
+            )
+            initial_payment = float(expense.get("initialPayment") or 0)
+            if initial_payment > 0:
+                conn.execute(
+                    """
+                    INSERT INTO wedding_payments
+                    (expense_id, date, amount, note, legacy_id, created_at)
+                    VALUES (?, ?, ?, 'Abono inicial demo', NULL, ?)
+                    """,
+                    (cursor.lastrowid, expense.get("paymentDate") or expense["date"], initial_payment, now),
+                )
+    house_count = conn.execute("SELECT COUNT(*) AS count FROM house_payments").fetchone()["count"]
+    if not house_count:
+        conn.executemany(
+            """
+            INSERT INTO house_payments
+            (payment_date, description, amount, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            [
+                ("2026-06-17", "Segundo abono de casa", 100000.00, now),
+                ("2026-06-30", "Enganche de la casa", 200000.00, now),
+            ],
+        )
 
 
 def migrate_recurring_accounts(conn: sqlite3.Connection) -> None:
@@ -1051,6 +1201,41 @@ def serialize_wedding_expense(row: sqlite3.Row) -> dict:
     }
 
 
+def serialize_house_payment(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["id"],
+        "paymentDate": row["payment_date"],
+        "description": row["description"],
+        "amount": float(row["amount"]),
+        "attachment_name": row["attachment_name"],
+        "attachment_mime": row["attachment_mime"],
+        "has_attachment": bool(row["attachment_path"]),
+        "created_at": row["created_at"],
+    }
+
+
+def build_house_state(month: str) -> dict:
+    month = month if re.match(r"^\d{4}-\d{2}$", month or "") else datetime.now().strftime("%Y-%m")
+    with db_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM house_payments
+            WHERE substr(payment_date, 1, 7)=?
+            ORDER BY payment_date DESC, id DESC
+            """,
+            (month,),
+        ).fetchall()
+    payments = [serialize_house_payment(row) for row in rows]
+    total = sum(payment["amount"] for payment in payments)
+    return {
+        "month": month,
+        "total": round(total, 2),
+        "count": len(payments),
+        "payments": payments,
+    }
+
+
 def build_wedding_state() -> dict:
     with db_connection() as conn:
         budget_row = conn.execute(
@@ -1171,6 +1356,22 @@ def save_wedding_attachment(expense_id: int, file: dict) -> tuple[str, Path, str
     return original_name, file_path, mime
 
 
+def save_house_attachment(payment_id: int, file: dict) -> tuple[str, Path, str]:
+    original_name = safe_filename(file.get("filename", "archivo"))
+    suffix = Path(original_name).suffix.lower()
+    allowed = {".pdf", ".png", ".jpg", ".jpeg", ".jfif", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif"}
+    if suffix not in allowed:
+        raise ValueError("Solo se permiten archivos PDF o imagenes.")
+    mime = mimetypes.guess_type(original_name)[0] or "application/octet-stream"
+    if suffix == ".pdf":
+        mime = "application/pdf"
+    elif not mime.startswith("image/"):
+        mime = "image/jpeg"
+    file_path = HOUSE_FILES / f"{payment_id}_{original_name}"
+    file_path.write_bytes(file.get("data", b""))
+    return original_name, file_path, mime
+
+
 def save_transaction_attachment(transaction_id: int, file: dict) -> tuple[str, Path, str]:
     original_name = safe_filename(file.get("filename", "archivo"))
     suffix = Path(original_name).suffix.lower()
@@ -1198,6 +1399,17 @@ def delete_wedding_attachment(relative_path: str | None) -> None:
     file_path.unlink(missing_ok=True)
 
 
+def delete_house_attachment(relative_path: str | None) -> None:
+    if not relative_path:
+        return
+    file_path = (DATA / relative_path).resolve()
+    try:
+        file_path.relative_to(HOUSE_FILES.resolve())
+    except ValueError:
+        return
+    file_path.unlink(missing_ok=True)
+
+
 def delete_transaction_attachment(relative_path: str | None) -> None:
     if not relative_path:
         return
@@ -1212,16 +1424,88 @@ def delete_transaction_attachment(relative_path: str | None) -> None:
 class App(BaseHTTPRequestHandler):
     server_version = "FinanzasLocal/0.1"
 
+    PUBLIC_API_PATHS = {"/api/login", "/api/logout", "/api/session"}
+
+    def current_user(self) -> str | None:
+        if not AUTH_ENABLED:
+            return AUTH_USER
+        jar = cookies.SimpleCookie(self.headers.get("Cookie", ""))
+        morsel = jar.get(SESSION_COOKIE)
+        return read_session_token(morsel.value if morsel else None)
+
+    def require_auth(self, path: str) -> bool:
+        if not AUTH_ENABLED or path in self.PUBLIC_API_PATHS:
+            return True
+        if self.current_user():
+            return True
+        self.send_json({"ok": False, "message": "No autorizado"}, status=401)
+        return False
+
+    def send_auth_cookie(self, username: str) -> None:
+        token = make_session_token(username)
+        cookie = cookies.SimpleCookie()
+        cookie[SESSION_COOKIE] = token
+        cookie[SESSION_COOKIE]["path"] = "/"
+        cookie[SESSION_COOKIE]["max-age"] = str(SESSION_TTL_SECONDS)
+        cookie[SESSION_COOKIE]["httponly"] = True
+        cookie[SESSION_COOKIE]["samesite"] = "Lax"
+        if SECURE_COOKIE:
+            cookie[SESSION_COOKIE]["secure"] = True
+        self.send_header("Set-Cookie", cookie.output(header="").strip())
+
+    def clear_auth_cookie(self) -> None:
+        cookie = cookies.SimpleCookie()
+        cookie[SESSION_COOKIE] = ""
+        cookie[SESSION_COOKIE]["path"] = "/"
+        cookie[SESSION_COOKIE]["max-age"] = "0"
+        cookie[SESSION_COOKIE]["httponly"] = True
+        cookie[SESSION_COOKIE]["samesite"] = "Lax"
+        if SECURE_COOKIE:
+            cookie[SESSION_COOKIE]["secure"] = True
+        self.send_header("Set-Cookie", cookie.output(header="").strip())
+
+    def handle_login(self) -> None:
+        body = self.read_json()
+        username = str(body.get("username", "")).strip()
+        password = str(body.get("password", ""))
+        if username != AUTH_USER or not password_matches(password):
+            self.send_json({"ok": False, "message": "Usuario o contraseña incorrectos"}, status=401)
+            return
+        payload = json.dumps({"ok": True, "user": username}, ensure_ascii=False).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_auth_cookie(username)
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def handle_logout(self) -> None:
+        payload = json.dumps({"ok": True}, ensure_ascii=False).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.clear_auth_cookie()
+        self.end_headers()
+        self.wfile.write(payload)
+
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path.startswith("/api/"):
+            if not self.require_auth(parsed.path):
+                return
             self.handle_api_get(parsed.path, parse_qs(parsed.query))
             return
         self.serve_static(parsed.path)
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
-        if parsed.path == "/api/import":
+        if not self.require_auth(parsed.path):
+            return
+        if parsed.path == "/api/login":
+            self.handle_login()
+        elif parsed.path == "/api/logout":
+            self.handle_logout()
+        elif parsed.path == "/api/import":
             self.handle_import()
         elif parsed.path == "/api/imports/update":
             body = self.read_json()
@@ -1251,6 +1535,13 @@ class App(BaseHTTPRequestHandler):
             expense_id = int(parsed.path.split("/")[4])
             _, file = self.read_wedding_expense_payload()
             self.update_wedding_attachment(expense_id, file)
+        elif parsed.path == "/api/house/payments":
+            body, file = self.read_wedding_expense_payload()
+            self.create_house_payment(body, file)
+        elif parsed.path.startswith("/api/house/payments/") and parsed.path.endswith("/attachment"):
+            payment_id = int(parsed.path.split("/")[4])
+            _, file = self.read_wedding_expense_payload()
+            self.update_house_attachment(payment_id, file)
         elif parsed.path == "/api/recurring/expenses":
             self.create_recurring_expense(self.read_json())
         elif parsed.path.startswith("/api/recurring/expenses/") and parsed.path.endswith("/toggle-paid"):
@@ -1261,6 +1552,8 @@ class App(BaseHTTPRequestHandler):
 
     def do_PUT(self) -> None:
         parsed = urlparse(self.path)
+        if not self.require_auth(parsed.path):
+            return
         if parsed.path.startswith("/api/transactions/"):
             transaction_id = int(parsed.path.rsplit("/", 1)[-1])
             body = self.read_json()
@@ -1276,6 +1569,8 @@ class App(BaseHTTPRequestHandler):
 
     def do_DELETE(self) -> None:
         parsed = urlparse(self.path)
+        if not self.require_auth(parsed.path):
+            return
         if parsed.path == "/api/imports":
             with db_connection() as conn:
                 conn.execute("DELETE FROM imports")
@@ -1286,6 +1581,9 @@ class App(BaseHTTPRequestHandler):
         elif parsed.path.startswith("/api/wedding/expenses/"):
             expense_id = int(parsed.path.rsplit("/", 1)[-1])
             self.delete_wedding_expense(expense_id)
+        elif parsed.path.startswith("/api/house/payments/"):
+            payment_id = int(parsed.path.rsplit("/", 1)[-1])
+            self.delete_house_payment(payment_id)
         elif parsed.path.startswith("/api/recurring/expenses/"):
             expense_id = int(parsed.path.rsplit("/", 1)[-1])
             self.delete_recurring_expense(expense_id)
@@ -1293,7 +1591,10 @@ class App(BaseHTTPRequestHandler):
             self.send_error(404)
 
     def handle_api_get(self, path: str, query: dict) -> None:
-        if path == "/api/meta":
+        if path == "/api/session":
+            user = self.current_user()
+            self.send_json({"authenticated": bool(user), "user": user})
+        elif path == "/api/meta":
             self.send_json(
                 {
                     "accounts": ACCOUNTS,
@@ -1342,6 +1643,12 @@ class App(BaseHTTPRequestHandler):
         elif path.startswith("/api/wedding/expenses/") and path.endswith("/attachment"):
             expense_id = int(path.split("/")[4])
             self.serve_wedding_attachment(expense_id)
+        elif path == "/api/house/state":
+            month = query.get("month", [datetime.now().strftime("%Y-%m")])[0]
+            self.send_json(build_house_state(month))
+        elif path.startswith("/api/house/payments/") and path.endswith("/attachment"):
+            payment_id = int(path.split("/")[4])
+            self.serve_house_attachment(payment_id)
         elif path == "/api/recurring/state":
             month = query.get("month", [datetime.now().strftime("%Y-%m")])[0]
             self.send_json(build_recurring_state(month))
@@ -1350,7 +1657,8 @@ class App(BaseHTTPRequestHandler):
             self.send_json(build_reports(month))
         elif path == "/api/reports/export":
             month = query.get("month", [datetime.now().strftime("%Y-%m")])[0]
-            self.serve_report_csv(month)
+            file_format = query.get("format", ["csv"])[0].lower()
+            self.serve_report_export(month, file_format)
         else:
             self.send_error(404)
 
@@ -1687,6 +1995,83 @@ class App(BaseHTTPRequestHandler):
             )
         self.send_json(build_wedding_state())
 
+    def create_house_payment(self, body: dict, file: dict | None = None) -> None:
+        amount = float(body.get("amount") or 0)
+        if amount <= 0:
+            self.send_error(400, "El monto debe ser mayor a cero")
+            return
+        description = (body.get("description", "").strip() or "Pago de la casa")[:90]
+        payment_date = normalize_date(body.get("paymentDate") or body.get("date") or datetime.now().strftime("%Y-%m-%d"))
+        now = datetime.now().isoformat(timespec="seconds")
+        with db_connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO house_payments
+                (payment_date, description, amount, created_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (payment_date, description, amount, now),
+            )
+            payment_id = cursor.lastrowid
+            if file:
+                try:
+                    filename, file_path, mime = save_house_attachment(payment_id, file)
+                except ValueError as exc:
+                    self.send_error(400, str(exc))
+                    return
+                conn.execute(
+                    """
+                    UPDATE house_payments
+                    SET attachment_name=?, attachment_path=?, attachment_mime=?
+                    WHERE id=?
+                    """,
+                    (filename, str(file_path.relative_to(DATA)), mime, payment_id),
+                )
+        self.send_json(build_house_state(payment_date[:7]), status=201)
+
+    def update_house_attachment(self, payment_id: int, file: dict | None) -> None:
+        if not file:
+            self.send_error(400, "Debes seleccionar un archivo PDF o imagen")
+            return
+        with db_connection() as conn:
+            existing = conn.execute(
+                "SELECT payment_date, attachment_path FROM house_payments WHERE id=?",
+                (payment_id,),
+            ).fetchone()
+            if not existing:
+                self.send_error(404, "Pago de casa no encontrado")
+                return
+            try:
+                filename, file_path, mime = save_house_attachment(payment_id, file)
+            except ValueError as exc:
+                self.send_error(400, str(exc))
+                return
+            relative_path = str(file_path.relative_to(DATA))
+            conn.execute(
+                """
+                UPDATE house_payments
+                SET attachment_name=?, attachment_path=?, attachment_mime=?
+                WHERE id=?
+                """,
+                (filename, relative_path, mime, payment_id),
+            )
+        if existing["attachment_path"] != relative_path:
+            delete_house_attachment(existing["attachment_path"])
+        self.send_json(build_house_state(existing["payment_date"][:7]))
+
+    def delete_house_payment(self, payment_id: int) -> None:
+        with db_connection() as conn:
+            row = conn.execute(
+                "SELECT attachment_path FROM house_payments WHERE id=?",
+                (payment_id,),
+            ).fetchone()
+            cursor = conn.execute("DELETE FROM house_payments WHERE id=?", (payment_id,))
+        if cursor.rowcount == 0:
+            self.send_error(404, "Pago de casa no encontrado")
+        else:
+            delete_house_attachment(row["attachment_path"] if row else None)
+            self.send_json({"ok": True})
+
     def create_wedding_expense(self, body: dict, file: dict | None = None) -> None:
         amount = float(body.get("amount") or 0)
         initial_payment = float(body.get("initialPayment") or 0)
@@ -1908,6 +2293,31 @@ class App(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(file_path.read_bytes())
 
+    def serve_house_attachment(self, payment_id: int) -> None:
+        with db_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT attachment_name, attachment_path, attachment_mime
+                FROM house_payments
+                WHERE id=?
+                """,
+                (payment_id,),
+            ).fetchone()
+        if not row or not row["attachment_path"]:
+            self.send_error(404, "Archivo no encontrado")
+            return
+        file_path = DATA / row["attachment_path"]
+        if not file_path.exists() or not file_path.is_file():
+            self.send_error(404, "Archivo no encontrado")
+            return
+        content_type = row["attachment_mime"] or "application/octet-stream"
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Disposition", f'inline; filename="{row["attachment_name"]}"')
+        self.send_header("Content-Length", str(file_path.stat().st_size))
+        self.end_headers()
+        self.wfile.write(file_path.read_bytes())
+
     def serve_transaction_attachment(self, transaction_id: int) -> None:
         with db_connection() as conn:
             row = conn.execute(
@@ -1932,6 +2342,32 @@ class App(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(file_path.stat().st_size))
         self.end_headers()
         self.wfile.write(file_path.read_bytes())
+
+    def serve_report_export(self, month: str, file_format: str) -> None:
+        report = build_reports(month)
+        if file_format in ("xlsx", "excel"):
+            payload = build_report_xlsx(report)
+            filename = f"reporte-financiero-{report['month']}.xlsx"
+            self.send_file_bytes(
+                payload,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                filename,
+            )
+            return
+        if file_format == "pdf":
+            payload = build_report_pdf(report)
+            filename = f"reporte-financiero-{report['month']}.pdf"
+            self.send_file_bytes(payload, "application/pdf", filename)
+            return
+        self.serve_report_csv(month)
+
+    def send_file_bytes(self, payload: bytes, content_type: str, filename: str) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
 
     def serve_report_csv(self, month: str) -> None:
         report = build_reports(month)
@@ -2293,8 +2729,439 @@ def build_reports(month: str) -> dict:
     }
 
 
+def report_money(value: float | int | None) -> str:
+    amount = float(value or 0)
+    sign = "-" if amount < 0 else ""
+    return f"{sign}Q {abs(amount):,.2f}"
+
+
+def report_percent(value: float | int | None) -> str:
+    return f"{float(value or 0) * 100:.1f}%"
+
+
+def report_month_name(month: str) -> str:
+    names = [
+        "enero",
+        "febrero",
+        "marzo",
+        "abril",
+        "mayo",
+        "junio",
+        "julio",
+        "agosto",
+        "septiembre",
+        "octubre",
+        "noviembre",
+        "diciembre",
+    ]
+    try:
+        year, month_number = month.split("-")
+        return f"{names[int(month_number) - 1]} de {year}"
+    except Exception:
+        return month
+
+
+def xlsx_col(index: int) -> str:
+    letters = ""
+    while index:
+        index, remainder = divmod(index - 1, 26)
+        letters = chr(65 + remainder) + letters
+    return letters
+
+
+def xlsx_cell(value, row: int, col: int, style: int = 0) -> str:
+    ref = f"{xlsx_col(col)}{row}"
+    style_attr = f' s="{style}"' if style else ""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return f'<c r="{ref}"{style_attr}><v>{float(value):.2f}</v></c>'
+    text = xml_escape("" if value is None else str(value))
+    return f'<c r="{ref}" t="inlineStr"{style_attr}><is><t>{text}</t></is></c>'
+
+
+def xlsx_sheet(rows: list[dict], widths: list[int]) -> str:
+    cols = "".join(
+        f'<col min="{idx}" max="{idx}" width="{width}" customWidth="1"/>'
+        for idx, width in enumerate(widths, start=1)
+    )
+    sheet_rows = []
+    for row_idx, row in enumerate(rows, start=1):
+        values = row.get("values", [])
+        styles = row.get("styles", [])
+        height = row.get("height")
+        height_attr = f' ht="{height}" customHeight="1"' if height else ""
+        cells = []
+        for col_idx, value in enumerate(values, start=1):
+            style = styles[col_idx - 1] if col_idx <= len(styles) else row.get("style", 0)
+            cells.append(xlsx_cell(value, row_idx, col_idx, style))
+        sheet_rows.append(f'<row r="{row_idx}"{height_attr}>{"".join(cells)}</row>')
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        f"<cols>{cols}</cols><sheetData>{''.join(sheet_rows)}</sheetData>"
+        "</worksheet>"
+    )
+
+
+def report_rows(report: dict) -> dict[str, list[dict]]:
+    summary = report["summary"]
+    comparison = report["comparison"]
+    rows = {
+        "Resumen": [
+            {"values": ["Reporte financiero", report_month_name(report["month"])], "style": 1, "height": 24},
+            {"values": []},
+            {"values": ["Resumen", "Monto"], "style": 2},
+            {"values": ["Ingresos", summary["income"]], "styles": [0, 4]},
+            {"values": ["Gastos", summary["expenses"]], "styles": [0, 5]},
+            {"values": ["Ahorro", summary["savings"]], "styles": [0, 3]},
+            {"values": ["Resultado", summary["balance"]], "styles": [0, 3]},
+            {"values": ["Tasa de ahorro", report_percent(summary.get("savingsRate"))], "styles": [0, 0]},
+            {"values": []},
+            {"values": ["Comparativo mes contra mes", "Actual", "Anterior", "Diferencia", "Cambio %"], "style": 2},
+        ],
+        "Bancos": [
+            {"values": ["Resumen por banco", report_month_name(report["month"])], "style": 1, "height": 24},
+            {"values": []},
+            {"values": ["Banco", "Ingresos", "Gastos", "Ahorro", "Transferencias", "Neto", "Movimientos"], "style": 2},
+        ],
+        "Tendencia": [
+            {"values": ["Tendencia de 6 meses", report_month_name(report["month"])], "style": 1, "height": 24},
+            {"values": []},
+            {"values": ["Mes", "Ingresos", "Gastos", "Ahorro", "Resultado"], "style": 2},
+        ],
+        "Categorias": [
+            {"values": ["Gastos por categoria", report_month_name(report["month"])], "style": 1, "height": 24},
+            {"values": []},
+            {"values": ["Categoria", "Monto"], "style": 2},
+        ],
+        "Gastos principales": [
+            {"values": ["Gastos principales", report_month_name(report["month"])], "style": 1, "height": 24},
+            {"values": []},
+            {"values": ["Fecha", "Descripcion", "Categoria", "Cuenta", "Monto"], "style": 2},
+        ],
+    }
+    for label, key in (
+        ("Ingresos", "income"),
+        ("Gastos", "expenses"),
+        ("Ahorro", "savings"),
+        ("Resultado", "balance"),
+    ):
+        metric = comparison[key]
+        rows["Resumen"].append(
+            {
+                "values": [
+                    label,
+                    metric["current"],
+                    metric["previous"],
+                    metric["delta"],
+                    report_percent(metric["percent"]),
+                ],
+                "styles": [0, 3, 3, 3, 0],
+            }
+        )
+    for bank in report["byBank"]:
+        rows["Bancos"].append(
+            {
+                "values": [
+                    bank["bank"],
+                    bank["income"],
+                    bank["expenses"],
+                    bank["savings"],
+                    bank["transfers"],
+                    bank["net"],
+                    bank["count"],
+                ],
+                "styles": [0, 4, 5, 3, 3, 3, 0],
+            }
+        )
+    for item in report["trend"]:
+        rows["Tendencia"].append(
+            {
+                "values": [
+                    report_month_name(item["month"]),
+                    item["income"],
+                    item["expenses"],
+                    item["savings"],
+                    item["balance"],
+                ],
+                "styles": [0, 4, 5, 3, 3],
+            }
+        )
+    for category, amount in report["byCategory"]:
+        rows["Categorias"].append({"values": [category, amount], "styles": [0, 5]})
+    for expense in report["topExpenses"]:
+        rows["Gastos principales"].append(
+            {
+                "values": [
+                    expense["date"],
+                    expense["description"],
+                    expense["category"],
+                    expense["account"],
+                    expense["amount"],
+                ],
+                "styles": [0, 0, 0, 0, 5],
+            }
+        )
+    return rows
+
+
+def build_report_xlsx(report: dict) -> bytes:
+    sheets = report_rows(report)
+    widths = {
+        "Resumen": [28, 18, 18, 18, 14],
+        "Bancos": [28, 16, 16, 16, 18, 16, 14],
+        "Tendencia": [22, 16, 16, 16, 16],
+        "Categorias": [34, 18],
+        "Gastos principales": [14, 45, 22, 30, 16],
+    }
+    styles = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <numFmts count="1"><numFmt numFmtId="164" formatCode="Q #,##0.00"/></numFmts>
+  <fonts count="4">
+    <font><sz val="11"/><color rgb="FF111827"/><name val="Calibri"/></font>
+    <font><b/><sz val="16"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>
+    <font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>
+    <font><b/><sz val="11"/><color rgb="FF111827"/><name val="Calibri"/></font>
+  </fonts>
+  <fills count="5">
+    <fill><patternFill patternType="none"/></fill>
+    <fill><patternFill patternType="gray125"/></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FF173A5E"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFEAFBF5"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFFFEFEF"/></patternFill></fill>
+  </fills>
+  <borders count="2">
+    <border><left/><right/><top/><bottom/><diagonal/></border>
+    <border><left style="thin"><color rgb="FFD7E0ED"/></left><right style="thin"><color rgb="FFD7E0ED"/></right><top style="thin"><color rgb="FFD7E0ED"/></top><bottom style="thin"><color rgb="FFD7E0ED"/></bottom><diagonal/></border>
+  </borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="6">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0"/>
+    <xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFill="1" applyFont="1"/>
+    <xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0" applyFill="1" applyFont="1"/>
+    <xf numFmtId="164" fontId="3" fillId="0" borderId="1" xfId="0" applyNumberFormat="1"/>
+    <xf numFmtId="164" fontId="3" fillId="3" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1"/>
+    <xf numFmtId="164" fontId="3" fillId="4" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1"/>
+  </cellXfs>
+  <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>"""
+    sheet_names = list(sheets.keys())
+    workbook_sheets = "".join(
+        f'<sheet name="{xml_escape(name)}" sheetId="{idx}" r:id="rId{idx}"/>'
+        for idx, name in enumerate(sheet_names, start=1)
+    )
+    workbook = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+        f"<sheets>{workbook_sheets}</sheets></workbook>"
+    )
+    rels = "".join(
+        f'<Relationship Id="rId{idx}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet{idx}.xml"/>'
+        for idx in range(1, len(sheet_names) + 1)
+    )
+    workbook_rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        f'{rels}<Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+        "</Relationships>"
+    )
+    content_types = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+        '<Default Extension="xml" ContentType="application/xml"/>'
+        '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+        '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+        + "".join(
+            f'<Override PartName="/xl/worksheets/sheet{idx}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            for idx in range(1, len(sheet_names) + 1)
+        )
+        + "</Types>"
+    )
+    root_rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+        "</Relationships>"
+    )
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as package:
+        package.writestr("[Content_Types].xml", content_types)
+        package.writestr("_rels/.rels", root_rels)
+        package.writestr("xl/workbook.xml", workbook)
+        package.writestr("xl/_rels/workbook.xml.rels", workbook_rels)
+        package.writestr("xl/styles.xml", styles)
+        for idx, name in enumerate(sheet_names, start=1):
+            package.writestr(f"xl/worksheets/sheet{idx}.xml", xlsx_sheet(sheets[name], widths[name]))
+    return output.getvalue()
+
+
+def pdf_escape_text(value) -> str:
+    text = str(value).encode("latin-1", errors="replace").decode("latin-1")
+    return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def build_report_pdf(report: dict) -> bytes:
+    commands: list[str] = []
+    pages: list[bytes] = []
+    y = 750
+
+    def new_page() -> None:
+        nonlocal commands, y
+        if commands:
+            pages.append("\n".join(commands).encode("latin-1", errors="replace"))
+        commands = []
+        y = 750
+        commands.append("0.96 0.98 1 rg 0 0 612 792 re f")
+        commands.append("0.09 0.22 0.36 rg 0 742 612 50 re f")
+        add_text(42, 762, "Reporte financiero", 18, "white")
+        add_text(420, 762, report_month_name(report["month"]), 11, "white")
+
+    def color_cmd(color: str) -> str:
+        return {
+            "navy": "0.09 0.22 0.36 rg",
+            "muted": "0.35 0.42 0.52 rg",
+            "green": "0.00 0.50 0.32 rg",
+            "red": "0.78 0.10 0.10 rg",
+            "amber": "0.70 0.42 0.02 rg",
+            "white": "1 1 1 rg",
+            "black": "0.07 0.09 0.14 rg",
+        }.get(color, "0.07 0.09 0.14 rg")
+
+    def add_text(x: int, yy: int, text: str, size: int = 10, color: str = "black") -> None:
+        commands.append(f"{color_cmd(color)} BT /F1 {size} Tf {x} {yy} Td ({pdf_escape_text(text)}) Tj ET")
+
+    def add_section(title: str) -> None:
+        nonlocal y
+        if y < 120:
+            new_page()
+        y -= 24
+        commands.append("0.88 0.92 0.97 rg 36 " + str(y - 8) + " 540 24 re f")
+        add_text(44, y, title, 12, "navy")
+        y -= 22
+
+    def add_row(columns: list[str], widths: list[int], header: bool = False) -> None:
+        nonlocal y
+        if y < 70:
+            new_page()
+        x = 42
+        if header:
+            commands.append("0.09 0.22 0.36 rg 36 " + str(y - 7) + " 540 22 re f")
+        for idx, col in enumerate(columns):
+            add_text(x, y, col[:42], 8 if header else 9, "white" if header else "black")
+            x += widths[idx]
+        y -= 22
+
+    new_page()
+    summary = report["summary"]
+    add_section("Resumen del mes")
+    add_row(["Ingresos", "Gastos", "Ahorro", "Resultado"], [135, 135, 135, 135], True)
+    add_row(
+        [
+            report_money(summary["income"]),
+            report_money(summary["expenses"]),
+            report_money(summary["savings"]),
+            report_money(summary["balance"]),
+        ],
+        [135, 135, 135, 135],
+    )
+    add_section("Comparativo mes contra mes")
+    add_row(["Concepto", "Actual", "Anterior", "Diferencia", "Cambio"], [120, 105, 105, 105, 105], True)
+    for label, key in (("Ingresos", "income"), ("Gastos", "expenses"), ("Ahorro", "savings"), ("Resultado", "balance")):
+        metric = report["comparison"][key]
+        add_row(
+            [
+                label,
+                report_money(metric["current"]),
+                report_money(metric["previous"]),
+                report_money(metric["delta"]),
+                report_percent(metric["percent"]),
+            ],
+            [120, 105, 105, 105, 105],
+        )
+    add_section("Resumen por banco")
+    add_row(["Banco", "Ingresos", "Gastos", "Neto", "Movs"], [170, 100, 100, 100, 70], True)
+    for bank in report["byBank"]:
+        add_row(
+            [
+                bank["bank"],
+                report_money(bank["income"]),
+                report_money(bank["expenses"]),
+                report_money(bank["net"]),
+                str(bank["count"]),
+            ],
+            [170, 100, 100, 100, 70],
+        )
+    add_section("Tendencia de 6 meses")
+    add_row(["Mes", "Ingresos", "Gastos", "Ahorro", "Resultado"], [140, 100, 100, 100, 100], True)
+    for item in report["trend"]:
+        add_row(
+            [
+                report_month_name(item["month"]),
+                report_money(item["income"]),
+                report_money(item["expenses"]),
+                report_money(item["savings"]),
+                report_money(item["balance"]),
+            ],
+            [140, 100, 100, 100, 100],
+        )
+    add_section("Gastos principales")
+    add_row(["Fecha", "Descripcion", "Categoria", "Monto"], [85, 255, 115, 85], True)
+    for expense in report["topExpenses"][:12]:
+        add_row(
+            [
+                expense["date"],
+                expense["description"],
+                expense["category"],
+                report_money(expense["amount"]),
+            ],
+            [85, 255, 115, 85],
+        )
+    pages.append("\n".join(commands).encode("latin-1", errors="replace"))
+
+    objects: list[bytes] = []
+    kids = []
+    objects.append(b"<< /Type /Catalog /Pages 2 0 R >>")
+    objects.append(b"")
+    objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+    for idx, content in enumerate(pages):
+        content_id = 4 + idx * 2
+        page_id = content_id + 1
+        kids.append(f"{page_id} 0 R")
+        objects.append(f"<< /Length {len(content)} >>\nstream\n".encode("latin-1") + content + b"\nendstream")
+        objects.append(
+            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents {content_id} 0 R >>".encode(
+                "latin-1"
+            )
+        )
+    objects[1] = f"<< /Type /Pages /Kids [{' '.join(kids)}] /Count {len(kids)} >>".encode("latin-1")
+
+    output = io.BytesIO()
+    output.write(b"%PDF-1.4\n")
+    offsets = [0]
+    for obj_id, obj in enumerate(objects, start=1):
+        offsets.append(output.tell())
+        output.write(f"{obj_id} 0 obj\n".encode("latin-1"))
+        output.write(obj)
+        output.write(b"\nendobj\n")
+    xref = output.tell()
+    output.write(f"xref\n0 {len(objects) + 1}\n".encode("latin-1"))
+    output.write(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        output.write(f"{offset:010d} 00000 n \n".encode("latin-1"))
+    output.write(
+        f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF".encode(
+            "latin-1"
+        )
+    )
+    return output.getvalue()
+
+
 if __name__ == "__main__":
     init_db()
-    server = ThreadingHTTPServer(("127.0.0.1", 8765), App)
-    print("Finanzas Local en http://127.0.0.1:8765")
+    server = ThreadingHTTPServer((APP_HOST, APP_PORT), App)
+    display_host = "127.0.0.1" if APP_HOST in {"0.0.0.0", "::"} else APP_HOST
+    print(f"Finanzas Local en http://{display_host}:{APP_PORT}")
+    if AUTH_ENABLED and AUTH_PASSWORD == "cambiar-esta-clave" and not AUTH_PASSWORD_HASH:
+        print("Aviso: cambia FINANZAS_PASSWORD o FINANZAS_PASSWORD_HASH antes de publicar el sistema.")
     server.serve_forever()

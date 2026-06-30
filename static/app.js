@@ -15,6 +15,11 @@ const state = {
     expenses: [],
     categories: [],
   },
+  house: {
+    total: 0,
+    count: 0,
+    payments: [],
+  },
   recurring: {
     items: [],
     categories: [],
@@ -33,7 +38,9 @@ const state = {
   deleteTransactionId: null,
   deleteTransactionIds: [],
   weddingAttachmentExpenseId: null,
+  houseAttachmentPaymentId: null,
   theme: localStorage.getItem("finanzas-theme") || "dark",
+  uiBound: false,
 };
 
 const DOLLAR_SALE_ACCOUNT = "BAC - Cuenta ahorro USD";
@@ -60,9 +67,41 @@ function applyTheme(theme) {
 }
 
 async function api(path, options = {}) {
-  const res = await fetch(path, options);
+  const skipAuthRedirect = options.skipAuthRedirect;
+  const requestOptions = { ...options };
+  delete requestOptions.skipAuthRedirect;
+  const res = await fetch(path, requestOptions);
+  if (res.status === 401 && !skipAuthRedirect) {
+    showLogin();
+  }
   if (!res.ok) throw new Error(await res.text());
   return res.json();
+}
+
+function showLogin() {
+  $("loginScreen").hidden = false;
+  $("loginForm").elements.password.value = "";
+  $("loginStatus").textContent = "";
+}
+
+function hideLogin() {
+  $("loginScreen").hidden = true;
+}
+
+async function boot() {
+  applyTheme(state.theme);
+  try {
+    const session = await api("/api/session", { skipAuthRedirect: true });
+    if (!session.authenticated) {
+      showLogin();
+      return;
+    }
+    hideLogin();
+    await load();
+  } catch (error) {
+    console.error(error);
+    showLogin();
+  }
 }
 
 function readableError(error) {
@@ -88,6 +127,10 @@ function setWeddingDefaultDates() {
   const today = new Date().toISOString().slice(0, 10);
   $("weddingExpenseForm").elements.date.value = today;
   $("weddingExpenseForm").elements.paymentDate.value = today;
+}
+
+function setHouseDefaultDate() {
+  $("housePaymentForm").elements.paymentDate.value = defaultDateForSelectedMonth();
 }
 
 function escapeHtml(value) {
@@ -125,6 +168,35 @@ function amountClassForType(type) {
   }[type] || "";
 }
 
+function importMovementSide(row) {
+  const type = row.suggested_type || "";
+  if (["Ingreso", "Ahorro", "Venta USD"].includes(type)) return "credit";
+  if (["Gasto", "Transferencia"].includes(type)) return "debit";
+  return Number(row.amount || 0) < 0 ? "debit" : "credit";
+}
+
+function renderImportTotals() {
+  const totals = state.imports.reduce(
+    (summary, row) => {
+      const amount = Math.abs(Number(row.amount || 0));
+      if (importMovementSide(row) === "credit") {
+        summary.credit += amount;
+      } else {
+        summary.debit += amount;
+      }
+      return summary;
+    },
+    { credit: 0, debit: 0 },
+  );
+  const net = totals.credit - totals.debit;
+  $("importCreditTotal").textContent = fmtMoney.format(totals.credit);
+  $("importDebitTotal").textContent = fmtMoney.format(totals.debit);
+  $("importNetTotal").textContent = fmtMoney.format(net);
+  $("importTotalCount").textContent = state.imports.length;
+  $("importNetCard").classList.toggle("positive", net >= 0);
+  $("importNetCard").classList.toggle("negative", net < 0);
+}
+
 async function load() {
   applyTheme(state.theme);
   state.meta = await api("/api/meta");
@@ -137,14 +209,18 @@ async function load() {
   $("savingsForm").elements.date.value = defaultDateForSelectedMonth();
   $("fundForm").elements.date.value = defaultDateForSelectedMonth();
   setWeddingDefaultDates();
+  setHouseDefaultDate();
   updateManualDefaults();
-  bindNavigation();
-  bindImportUploader();
+  if (!state.uiBound) {
+    bindNavigation();
+    bindImportUploader();
+    state.uiBound = true;
+  }
   await refreshAll();
 }
 
 async function refreshAll() {
-  await Promise.all([loadImports(), loadDashboard(), loadWedding(), loadRecurring(), loadReports()]);
+  await Promise.all([loadImports(), loadDashboard(), loadWedding(), loadHouse(), loadRecurring(), loadReports()]);
 }
 
 async function loadImports() {
@@ -161,6 +237,12 @@ async function loadDashboard() {
 async function loadWedding() {
   state.wedding = await api("/api/wedding/state");
   renderWedding();
+}
+
+async function loadHouse() {
+  const month = $("monthInput").value;
+  state.house = await api(`/api/house/state?month=${encodeURIComponent(month)}`);
+  renderHouse();
 }
 
 async function loadRecurring() {
@@ -493,10 +575,11 @@ function renderReports() {
           .join("");
 }
 
-function exportReportCsv() {
+function exportReport(format) {
   const link = document.createElement("a");
-  link.href = `/api/reports/export?month=${encodeURIComponent(state.reports.month)}`;
-  link.download = `reporte-financiero-${state.reports.month}.csv`;
+  const extension = format === "pdf" ? "pdf" : "xlsx";
+  link.href = `/api/reports/export?month=${encodeURIComponent(state.reports.month)}&format=${format}`;
+  link.download = `reporte-financiero-${state.reports.month}.${extension}`;
   link.hidden = true;
   document.body.appendChild(link);
   link.click();
@@ -698,6 +781,7 @@ function renderImports() {
             </tr>`,
           )
           .join("");
+  renderImportTotals();
   renderImportWorkflow(filteredImports.length);
 }
 
@@ -722,8 +806,9 @@ function renderWedding() {
   const data = state.wedding;
   const progress = Math.min(data.progress || 0, 1);
   const progressText = `${Math.round(progress * 100)}%`;
+  const owed = Math.max(Number(data.pending ?? Number(data.spent || 0) - Number(data.paid || 0)), 0);
   $("weddingDashBudget").textContent = fmtMoney.format(data.budget || 0);
-  $("weddingDashSpent").textContent = fmtMoney.format(data.spent || 0);
+  $("weddingDashSpent").textContent = fmtMoney.format(owed);
   $("weddingDashPaid").textContent = fmtMoney.format(data.paid || 0);
   $("weddingDashAvailable").textContent = fmtMoney.format(data.available || 0);
   $("weddingDashProgress").textContent = progressText;
@@ -778,6 +863,54 @@ function renderWedding() {
                 }
                 <button class="table-action" type="button" data-wedding-action="payment">Abonar</button>
                 <button class="table-action danger-text" type="button" data-wedding-action="delete">Eliminar</button>
+              </td>
+            </tr>`,
+          )
+          .join("");
+}
+
+function renderHouse() {
+  const data = state.house || { payments: [] };
+  const payments = data.payments || [];
+  $("houseTotalKpi").textContent = fmtMoney.format(data.total || 0);
+  $("houseCountKpi").textContent = data.count || 0;
+
+  const query = normalizeSearch($("houseSearch").value);
+  const filtered = payments.filter((payment) =>
+    matchesSearch(
+      [
+        payment.paymentDate,
+        payment.description,
+        fmtMoney.format(payment.amount),
+        payment.attachment_name || "",
+        payment.has_attachment ? "con archivo documento evidencia" : "sin archivo",
+      ],
+      query,
+    ),
+  );
+
+  $("housePaymentsBody").innerHTML =
+    payments.length === 0
+      ? `<tr><td class="empty" colspan="5">Aun no hay pagos de casa registrados en este mes.</td></tr>`
+      : filtered.length === 0
+        ? `<tr><td class="empty" colspan="5">No hay pagos de casa que coincidan con la busqueda.</td></tr>`
+        : filtered
+          .map(
+            (payment) => `
+            <tr data-house-payment-id="${payment.id}">
+              <td>${escapeHtml(formatDisplayDate(payment.paymentDate))}</td>
+              <td>${escapeHtml(payment.description)}</td>
+              <td class="money">${fmtMoney.format(payment.amount)}</td>
+              <td>
+                ${
+                  payment.has_attachment
+                    ? `<button class="table-action success-text" type="button" data-house-action="view-attachment" data-attachment-name="${escapeHtml(payment.attachment_name || "Archivo")}" data-attachment-mime="${escapeHtml(payment.attachment_mime || "")}">Ver</button>`
+                    : `<span class="muted-text">Sin archivo</span>`
+                }
+              </td>
+              <td class="actions-cell">
+                <button class="table-action" type="button" data-house-action="attachment">${payment.has_attachment ? "Cambiar" : "Adjuntar"}</button>
+                <button class="table-action danger-text" type="button" data-house-action="delete">Eliminar</button>
               </td>
             </tr>`,
           )
@@ -847,6 +980,7 @@ function setActiveView(viewId) {
     fundsView: ["Fondos", "Control mensual del fondo debitado desde GYT."],
     savingsView: ["Venta dolares", "Seguimiento de ventas USD registradas manualmente."],
     weddingView: ["Gastos de boda", "Presupuesto, abonos y proveedores del evento."],
+    houseView: ["Pago de la casa", "Control de pagos, documentos y evidencias de la casa."],
     reportsView: ["Reportes", "Analiza tendencias, categorias y comportamiento mensual."],
   };
   const [title, subtitle] = titles[viewId] || titles.summaryView;
@@ -944,6 +1078,7 @@ function closeModals() {
   state.deleteTransactionId = null;
   state.deleteTransactionIds = [];
   state.weddingAttachmentExpenseId = null;
+  state.houseAttachmentPaymentId = null;
   if ($("weddingAttachmentViewer")) {
     $("weddingAttachmentViewer").innerHTML = "";
   }
@@ -960,6 +1095,16 @@ function detailRow(label, value) {
 
 function showWeddingAttachment(expenseId, name, mime) {
   const url = `/api/wedding/expenses/${expenseId}/attachment`;
+  $("weddingAttachmentViewTitle").textContent = name || "Documento adjunto";
+  $("weddingAttachmentOpenLink").href = url;
+  $("weddingAttachmentViewer").innerHTML = mime.startsWith("image/")
+    ? `<img src="${url}" alt="${escapeHtml(name || "Documento adjunto")}" />`
+    : `<iframe src="${url}" title="${escapeHtml(name || "Documento adjunto")}"></iframe>`;
+  openModal("weddingAttachmentViewModal");
+}
+
+function showHouseAttachment(paymentId, name, mime) {
+  const url = `/api/house/payments/${paymentId}/attachment`;
   $("weddingAttachmentViewTitle").textContent = name || "Documento adjunto";
   $("weddingAttachmentOpenLink").href = url;
   $("weddingAttachmentViewer").innerHTML = mime.startsWith("image/")
@@ -1076,6 +1221,35 @@ async function clearImportDraft(message = "Carga cancelada.") {
 
 $("themeToggle").addEventListener("click", () => {
   applyTheme(state.theme === "light" ? "dark" : "light");
+});
+
+$("loginForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = Object.fromEntries(new FormData(form).entries());
+  $("loginStatus").textContent = "Validando acceso...";
+  try {
+    const result = await api("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+      skipAuthRedirect: true,
+    });
+    if (!result.ok) throw new Error(result.message || "No se pudo iniciar sesion");
+    $("loginStatus").textContent = "";
+    hideLogin();
+    await load();
+  } catch (error) {
+    $("loginStatus").textContent = readableError(error);
+  }
+});
+
+$("logoutBtn").addEventListener("click", async () => {
+  try {
+    await api("/api/logout", { method: "POST", skipAuthRedirect: true });
+  } finally {
+    showLogin();
+  }
 });
 
 $("manualType").addEventListener("change", updateManualDefaults);
@@ -1206,8 +1380,9 @@ $("fundSearch").addEventListener("input", renderFunds);
 $("savingSaleSearch").addEventListener("input", renderSavingSales);
 $("recurringSearch").addEventListener("input", renderRecurring);
 $("weddingSearch").addEventListener("input", renderWedding);
-$("exportReportBtn").addEventListener("click", exportReportCsv);
-$("printReportBtn").addEventListener("click", printReport);
+$("houseSearch").addEventListener("input", renderHouse);
+$("exportReportExcelBtn").addEventListener("click", () => exportReport("xlsx"));
+$("exportReportPdfBtn").addEventListener("click", () => exportReport("pdf"));
 
 $("recurringForm").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -1327,6 +1502,25 @@ $("weddingExpenseForm").addEventListener("submit", async (event) => {
   }
 });
 
+$("housePaymentForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  $("houseStatus").textContent = "Guardando pago...";
+  try {
+    state.house = await api("/api/house/payments", {
+      method: "POST",
+      body: new FormData(form),
+    });
+    $("monthInput").value = form.elements.paymentDate.value.slice(0, 7);
+    form.reset();
+    setHouseDefaultDate();
+    $("houseStatus").textContent = "Pago guardado correctamente.";
+    renderHouse();
+  } catch (error) {
+    $("houseStatus").textContent = readableError(error);
+  }
+});
+
 $("savingsBody").addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-savings-action]");
   if (!button) return;
@@ -1440,6 +1634,51 @@ $("weddingAttachmentForm").addEventListener("submit", async (event) => {
   }
 });
 
+$("housePaymentsBody").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-house-action]");
+  if (!button) return;
+  const row = button.closest("tr[data-house-payment-id]");
+  if (!row) return;
+  const paymentId = row.dataset.housePaymentId;
+  if (button.dataset.houseAction === "view-attachment") {
+    showHouseAttachment(
+      paymentId,
+      button.dataset.attachmentName || "Documento adjunto",
+      button.dataset.attachmentMime || "",
+    );
+  } else if (button.dataset.houseAction === "attachment") {
+    const form = $("houseAttachmentForm");
+    form.reset();
+    $("houseAttachmentStatus").textContent = "";
+    state.houseAttachmentPaymentId = paymentId;
+    form.elements.paymentId.value = paymentId;
+    openModal("houseAttachmentModal");
+  } else if (button.dataset.houseAction === "delete") {
+    await api(`/api/house/payments/${paymentId}`, { method: "DELETE" });
+    await loadHouse();
+  }
+});
+
+$("houseAttachmentForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const paymentId = form.elements.paymentId.value || state.houseAttachmentPaymentId;
+  const file = form.elements.attachment.files[0];
+  if (!file) return;
+  $("houseAttachmentStatus").textContent = "Guardando archivo...";
+  try {
+    state.house = await api(`/api/house/payments/${paymentId}/attachment`, {
+      method: "POST",
+      body: new FormData(form),
+    });
+    $("houseAttachmentStatus").textContent = "";
+    closeModals();
+    renderHouse();
+  } catch (error) {
+    $("houseAttachmentStatus").textContent = readableError(error);
+  }
+});
+
 $("weddingPaymentForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
@@ -1496,12 +1735,14 @@ $("monthInput").addEventListener("change", () => {
   $("manualForm").elements.date.value = defaultDateForSelectedMonth();
   $("savingsForm").elements.date.value = defaultDateForSelectedMonth();
   $("fundForm").elements.date.value = defaultDateForSelectedMonth();
+  setHouseDefaultDate();
   loadDashboard();
+  loadHouse();
   loadRecurring();
   loadReports();
 });
 
-load().catch((error) => {
+boot().catch((error) => {
   console.error(error);
   $("importStatus").textContent = "No se pudo cargar la app local.";
 });
