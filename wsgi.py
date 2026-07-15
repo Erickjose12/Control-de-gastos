@@ -11,7 +11,7 @@ ROOT = Path(__file__).parent
 os.environ.setdefault("FINANZAS_DATA_DIR", str(ROOT / "data"))
 os.environ.setdefault("FINANZAS_HOST", "0.0.0.0")
 
-from server import App, init_db  # noqa: E402
+from server import App, MAX_UPLOAD_BYTES, init_db  # noqa: E402
 
 
 init_db()
@@ -69,6 +69,17 @@ def application(environ, start_response):
         length = int(length_text)
     except ValueError:
         length = 0
+
+    if length > MAX_UPLOAD_BYTES:
+        # No bufferear el cuerpo en memoria si el cliente ya anuncio un
+        # Content-Length mayor al limite de la app: evita que un request
+        # gigante agote memoria del worker antes de que la app lo rechace.
+        payload = "413 El cuerpo de la solicitud es demasiado grande".encode("utf-8")
+        start_response(
+            "413 Request Entity Too Large",
+            [("Content-Type", "text/plain; charset=utf-8"), ("Content-Length", str(len(payload)))],
+        )
+        return [payload]
 
     request.command = method
     request.path = f"{path}?{query}" if query else path

@@ -1510,16 +1510,21 @@ $("cashExpenseForm").addEventListener("submit", async (event) => {
   if (!String(formData.get("description") || "").trim()) {
     formData.set("description", "Gasto en efectivo");
   }
-  const result = await api("/api/transactions", {
-    method: "POST",
-    body: formData,
-  });
-  if (result.month) $("monthInput").value = result.month;
-  $("cashExpenseStatus").textContent = "Gasto en efectivo guardado.";
-  event.target.reset();
-  $("cashExpenseDate").value = defaultDateForSelectedMonth();
-  $("cashExpenseCategory").innerHTML = optionList(state.meta.expenseCategories, "Otros gastos");
-  await refreshMonthlyData();
+  $("cashExpenseStatus").textContent = "Guardando...";
+  try {
+    const result = await api("/api/transactions", {
+      method: "POST",
+      body: formData,
+    });
+    if (result.month) $("monthInput").value = result.month;
+    $("cashExpenseStatus").textContent = "Gasto en efectivo guardado.";
+    event.target.reset();
+    $("cashExpenseDate").value = defaultDateForSelectedMonth();
+    $("cashExpenseCategory").innerHTML = optionList(state.meta.expenseCategories, "Otros gastos");
+    await refreshMonthlyData();
+  } catch (error) {
+    $("cashExpenseStatus").textContent = readableError(error);
+  }
 });
 $("manualForm").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -1527,22 +1532,26 @@ $("manualForm").addEventListener("submit", async (event) => {
   const formData = new FormData(form);
   const data = Object.fromEntries(formData.entries());
   $("manualStatus").textContent = "Guardando movimiento...";
-  await api("/api/transactions", {
-    method: "POST",
-    body: formData,
-  });
-  $("manualStatus").textContent = "Movimiento manual guardado.";
-  $("importStatus").textContent = "Movimiento manual guardado.";
-  if (data.date) {
-    $("monthInput").value = data.date.slice(0, 7);
+  try {
+    await api("/api/transactions", {
+      method: "POST",
+      body: formData,
+    });
+    $("manualStatus").textContent = "Movimiento manual guardado.";
+    $("importStatus").textContent = "Movimiento manual guardado.";
+    if (data.date) {
+      $("monthInput").value = data.date.slice(0, 7);
+    }
+    const currentType = $("manualType").value;
+    form.reset();
+    $("manualForm").elements.date.value = defaultDateForSelectedMonth();
+    $("cashExpenseDate").value = defaultDateForSelectedMonth();
+    $("manualType").value = currentType;
+    updateManualDefaults();
+    await refreshMonthlyData();
+  } catch (error) {
+    $("manualStatus").textContent = readableError(error);
   }
-  const currentType = $("manualType").value;
-  form.reset();
-  $("manualForm").elements.date.value = defaultDateForSelectedMonth();
-  $("cashExpenseDate").value = defaultDateForSelectedMonth();
-  $("manualType").value = currentType;
-  updateManualDefaults();
-  await refreshMonthlyData();
 });
 
 function openAhorroEditForm(ahorro) {
@@ -1638,6 +1647,7 @@ function openAhorroMovementForm(ahorroId) {
   form.elements.description.value = isFondo ? "Aporte mensual a fondo" : "";
   $("ahorroMovementDirectionField").hidden = isFondo;
   $("ahorroMovementTitle").textContent = isFondo ? "Registrar aporte" : "Registrar movimiento";
+  $("ahorroMovementStatus").textContent = "";
   state.ahorroMovementAhorroId = ahorroId;
   openModal("ahorroMovementModal");
 }
@@ -1646,14 +1656,19 @@ $("ahorroMovementForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const ahorroId = form.elements.ahorroId.value;
-  state.ahorros = await api(`/api/ahorros/${ahorroId}/movements`, {
-    method: "POST",
-    body: new FormData(form),
-  });
-  closeModals();
-  renderAhorros();
-  if (state.ahorroDetailAhorroId === ahorroId) {
-    showAhorroDetail(ahorroId);
+  $("ahorroMovementStatus").textContent = "Guardando...";
+  try {
+    state.ahorros = await api(`/api/ahorros/${ahorroId}/movements`, {
+      method: "POST",
+      body: new FormData(form),
+    });
+    closeModals();
+    renderAhorros();
+    if (state.ahorroDetailAhorroId === ahorroId) {
+      showAhorroDetail(ahorroId);
+    }
+  } catch (error) {
+    $("ahorroMovementStatus").textContent = readableError(error);
   }
 });
 
@@ -1856,13 +1871,19 @@ $("savingSaleBody").addEventListener("click", async (event) => {
 $("weddingBudgetForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const budget = Number($("weddingBudgetInput").value || 0);
-  state.wedding = await api("/api/wedding/budget", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ budget }),
-  });
-  renderWedding();
-  await loadReports();
+  $("weddingBudgetStatus").textContent = "Actualizando...";
+  try {
+    state.wedding = await api("/api/wedding/budget", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ budget }),
+    });
+    $("weddingBudgetStatus").textContent = "Presupuesto actualizado.";
+    renderWedding();
+    await loadReports();
+  } catch (error) {
+    $("weddingBudgetStatus").textContent = readableError(error);
+  }
 });
 
 function resetWeddingExpenseForm() {
@@ -2146,6 +2167,7 @@ function openDebtPaymentForm(debtId) {
   form.elements.debtId.value = debtId;
   form.elements.date.value = new Date().toISOString().slice(0, 10);
   $("debtPaymentAccount").innerHTML = optionList(state.debts.accounts || [], (state.debts.accounts || [])[0]);
+  $("debtPaymentStatus").textContent = "";
   state.debtPaymentDebtId = debtId;
   openModal("debtPaymentModal");
 }
@@ -2354,13 +2376,18 @@ $("debtPaymentForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const debtId = form.elements.debtId.value;
-  state.debts = await api(`/api/debts/${debtId}/payments`, {
-    method: "POST",
-    body: new FormData(form),
-  });
-  closeModals();
-  renderDebts();
-  await refreshMonthlyData();
+  $("debtPaymentStatus").textContent = "Guardando...";
+  try {
+    state.debts = await api(`/api/debts/${debtId}/payments`, {
+      method: "POST",
+      body: new FormData(form),
+    });
+    closeModals();
+    renderDebts();
+    await refreshMonthlyData();
+  } catch (error) {
+    $("debtPaymentStatus").textContent = readableError(error);
+  }
 });
 
 $("debtAttachmentForm").addEventListener("submit", async (event) => {

@@ -648,6 +648,7 @@
                 <input id="weddingBudgetInput" name="budget" type="number" min="0" step="0.01" placeholder="0.00" />
               </label>
               <button class="ghost" type="submit">Actualizar</button>
+              <p id="weddingBudgetStatus" class="status"></p>
             </form>
           </section>
 
@@ -995,6 +996,7 @@
             <input name="attachment" type="file" accept=".pdf,.png,.jpg,.jpeg,.jfif,.webp,.gif,.bmp,.tif,.tiff,.heic,.heif,application/pdf,image/*" />
           </label>
           <p class="status wide-field">El pago creara un movimiento "Pago tarjeta" en Gastos mensuales desde la cuenta de origen.</p>
+          <p id="debtPaymentStatus" class="status wide-field"></p>
           <div class="modal-actions form-actions">
             <button class="ghost" type="button" data-close-modal>Cancelar</button>
             <button class="primary" type="submit">Guardar pago</button>
@@ -1083,6 +1085,7 @@
             Boleta o evidencia
             <input name="attachment" type="file" accept=".pdf,.png,.jpg,.jpeg,.jfif,.webp,.gif,.bmp,.tif,.tiff,.heic,.heif,application/pdf,image/*" />
           </label>
+          <p id="ahorroMovementStatus" class="status wide-field"></p>
           <div class="modal-actions form-actions">
             <button class="ghost" type="button" data-close-modal>Cancelar</button>
             <button class="primary" type="submit">Guardar movimiento</button>

@@ -43,9 +43,9 @@ DEFAULT_USD_GTQ_RATE = 7.8
 LEGACY_WEDDING_DB = ROOT.parent / "Control-de-gastos-de-boda" / "data" / "boda.db"
 APP_HOST = os.environ.get("FINANZAS_HOST", "127.0.0.1")
 APP_PORT = int(os.environ.get("PORT", os.environ.get("FINANZAS_PORT", "8765")))
-AUTH_ENABLED = True
+AUTH_ENABLED = os.environ.get("FINANZAS_AUTH", "1").lower() not in {"0", "false", "no", "off"}
 AUTH_USER = os.environ.get("FINANZAS_USER", "ErickTest")
-AUTH_PASSWORD = os.environ.get("FINANZAS_PASSWORD", "test123")
+AUTH_PASSWORD = os.environ.get("FINANZAS_PASSWORD", "cambiar-esta-clave")
 AUTH_PASSWORD_HASH = os.environ.get("FINANZAS_PASSWORD_HASH", "")
 SESSION_SECRET_FROM_ENV = bool(os.environ.get("FINANZAS_SESSION_SECRET"))
 # Sin secreto explicito generamos uno aleatorio por proceso: los tokens no son
@@ -738,20 +738,24 @@ def migrate_wedding_data(conn: sqlite3.Connection) -> None:
 
 def seed_examples(conn: sqlite3.Connection) -> None:
     now = datetime.now().isoformat(timespec="seconds")
+    ahorro = conn.execute(
+        "SELECT id FROM ahorros WHERE type='Ahorro' AND account=?", (SAVINGS_ACCOUNT,)
+    ).fetchone()
+    ahorro_id = ahorro["id"] if ahorro else None
     rows = [
-        ("2026-06-01", "Ingreso", "Sueldo GYT", "Sueldo depositado en GYT", "GYT - Cuenta ahorro sueldo", 4500, None, now),
-        ("2026-06-15", "Ingreso", "Sueldo BAC USD", "Sueldo depositado en BAC USD", "BAC - Cuenta ahorro USD", 2500, None, now),
-        ("2026-06-20", "Ahorro", "Ahorro Banrural", "Sobrante movido a Banrural", "Banrural - Cuenta ahorro", 1000, None, now),
-        ("2026-06-22", "Venta USD", "Venta USD", "Venta manual de dolares", "Banrural - Cuenta ahorro", 1500, None, now),
-        ("2026-06-02", "Gasto", "Alquiler / vivienda", "Renta", "GYT - Cuenta ahorro sueldo", 1500, None, now),
-        ("2026-06-03", "Gasto", "Supermercado", "Compra semanal", "GYT - Tarjeta credito", 420, None, now),
-        ("2026-06-05", "Gasto", "Transporte", "Gasolina / bus", "Efectivo", 180, None, now),
+        ("2026-06-01", "Ingreso", "Sueldo GYT", "Sueldo depositado en GYT", "GYT - Cuenta ahorro sueldo", 4500, None, None, now),
+        ("2026-06-15", "Ingreso", "Sueldo BAC USD", "Sueldo depositado en BAC USD", "BAC - Cuenta ahorro USD", 2500, None, None, now),
+        ("2026-06-20", "Ahorro", "Ahorro Banrural", "Sobrante movido a Banrural", "Banrural - Cuenta ahorro", 1000, None, ahorro_id, now),
+        ("2026-06-22", "Venta USD", "Venta USD", "Venta manual de dolares", "Banrural - Cuenta ahorro", 1500, None, ahorro_id, now),
+        ("2026-06-02", "Gasto", "Alquiler / vivienda", "Renta", "GYT - Cuenta ahorro sueldo", 1500, None, None, now),
+        ("2026-06-03", "Gasto", "Supermercado", "Compra semanal", "GYT - Tarjeta credito", 420, None, None, now),
+        ("2026-06-05", "Gasto", "Transporte", "Gasolina / bus", "Efectivo", 180, None, None, now),
     ]
     conn.executemany(
         """
         INSERT INTO transactions
-        (date, type, category, description, account, amount, source_import_id, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (date, type, category, description, account, amount, source_import_id, ahorro_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         rows,
     )
@@ -789,6 +793,13 @@ def normalize_date(value: str) -> str:
         except ValueError:
             pass
     return text
+
+
+def parse_id_segment(text: str) -> int | None:
+    try:
+        return int(text)
+    except (TypeError, ValueError):
+        return None
 
 
 def optional_float(value) -> float | None:
@@ -1897,7 +1908,10 @@ class App(BaseHTTPRequestHandler):
             body = self.read_json()
             self.delete_transactions(body.get("ids", []))
         elif parsed.path.startswith("/api/transactions/") and parsed.path.endswith("/attachment"):
-            transaction_id = int(parsed.path.split("/")[3])
+            transaction_id = parse_id_segment(parsed.path.split("/")[3])
+            if transaction_id is None:
+                self.send_error(400, "Identificador invalido en la URL")
+                return
             _, file = self.read_transaction_payload()
             self.update_transaction_attachment(transaction_id, file)
         elif parsed.path == "/api/wedding/expenses":
@@ -1906,44 +1920,68 @@ class App(BaseHTTPRequestHandler):
         elif parsed.path == "/api/wedding/sample-data":
             self.load_wedding_sample_data()
         elif parsed.path.startswith("/api/wedding/expenses/") and parsed.path.endswith("/payments"):
-            expense_id = int(parsed.path.split("/")[4])
+            expense_id = parse_id_segment(parsed.path.split("/")[4])
+            if expense_id is None:
+                self.send_error(400, "Identificador invalido en la URL")
+                return
             body, file = self.read_wedding_expense_payload()
             self.create_wedding_payment(expense_id, body, file)
         elif parsed.path.startswith("/api/wedding/expenses/") and parsed.path.endswith("/attachment"):
-            expense_id = int(parsed.path.split("/")[4])
+            expense_id = parse_id_segment(parsed.path.split("/")[4])
+            if expense_id is None:
+                self.send_error(400, "Identificador invalido en la URL")
+                return
             _, file = self.read_wedding_expense_payload()
             self.update_wedding_attachment(expense_id, file)
         elif parsed.path.startswith("/api/wedding/payments/") and parsed.path.endswith("/attachment"):
-            payment_id = int(parsed.path.split("/")[4])
+            payment_id = parse_id_segment(parsed.path.split("/")[4])
+            if payment_id is None:
+                self.send_error(400, "Identificador invalido en la URL")
+                return
             _, file = self.read_wedding_expense_payload()
             self.update_wedding_payment_attachment(payment_id, file)
         elif parsed.path == "/api/debts":
             self.create_debt(self.read_json())
         elif parsed.path.startswith("/api/debts/payments/") and parsed.path.endswith("/attachment"):
-            payment_id = int(parsed.path.split("/")[4])
+            payment_id = parse_id_segment(parsed.path.split("/")[4])
+            if payment_id is None:
+                self.send_error(400, "Identificador invalido en la URL")
+                return
             _, file = self.read_wedding_expense_payload()
             self.update_debt_payment_attachment(payment_id, file)
         elif parsed.path.startswith("/api/debts/") and parsed.path.endswith("/payments"):
-            debt_id = int(parsed.path.split("/")[3])
+            debt_id = parse_id_segment(parsed.path.split("/")[3])
+            if debt_id is None:
+                self.send_error(400, "Identificador invalido en la URL")
+                return
             body, file = self.read_wedding_expense_payload()
             self.create_debt_payment(debt_id, body, file)
         elif parsed.path == "/api/ahorros":
             self.create_ahorro(self.read_json())
         elif parsed.path.startswith("/api/ahorros/") and parsed.path.endswith("/movements"):
-            ahorro_id = int(parsed.path.split("/")[3])
+            ahorro_id = parse_id_segment(parsed.path.split("/")[3])
+            if ahorro_id is None:
+                self.send_error(400, "Identificador invalido en la URL")
+                return
             body, file = self.read_wedding_expense_payload()
             self.create_ahorro_movement(ahorro_id, body, file)
         elif parsed.path == "/api/house/payments":
             body, file = self.read_wedding_expense_payload()
             self.create_house_payment(body, file)
         elif parsed.path.startswith("/api/house/payments/") and parsed.path.endswith("/attachment"):
-            payment_id = int(parsed.path.split("/")[4])
+            payment_id = parse_id_segment(parsed.path.split("/")[4])
+            if payment_id is None:
+                self.send_error(400, "Identificador invalido en la URL")
+                return
             _, file = self.read_wedding_expense_payload()
             self.update_house_attachment(payment_id, file)
         elif parsed.path == "/api/recurring/expenses":
             self.create_recurring_expense(self.read_json())
         elif parsed.path.startswith("/api/recurring/expenses/") and parsed.path.endswith("/toggle-paid"):
-            expense_id = int(parsed.path.split("/")[4])
+            expense_id = parse_id_segment(parsed.path.split("/")[4])
+            if expense_id is None:
+                self.send_error(400, "Identificador invalido en la URL")
+                return
             self.toggle_recurring_paid(expense_id, self.read_json())
         else:
             self.send_error(404)
@@ -1957,23 +1995,38 @@ class App(BaseHTTPRequestHandler):
         if parsed.path == "/api/monthly-control":
             self.update_monthly_control(self.read_json())
         elif parsed.path.startswith("/api/transactions/"):
-            transaction_id = int(parsed.path.rsplit("/", 1)[-1])
+            transaction_id = parse_id_segment(parsed.path.rsplit("/", 1)[-1])
+            if transaction_id is None:
+                self.send_error(400, "Identificador invalido en la URL")
+                return
             body = self.read_json()
             self.update_transaction(transaction_id, body)
         elif parsed.path == "/api/wedding/budget":
             body = self.read_json()
             self.update_wedding_budget(body)
         elif parsed.path.startswith("/api/wedding/expenses/"):
-            expense_id = int(parsed.path.rsplit("/", 1)[-1])
+            expense_id = parse_id_segment(parsed.path.rsplit("/", 1)[-1])
+            if expense_id is None:
+                self.send_error(400, "Identificador invalido en la URL")
+                return
             self.update_wedding_expense(expense_id, self.read_json())
         elif parsed.path.startswith("/api/debts/"):
-            debt_id = int(parsed.path.rsplit("/", 1)[-1])
+            debt_id = parse_id_segment(parsed.path.rsplit("/", 1)[-1])
+            if debt_id is None:
+                self.send_error(400, "Identificador invalido en la URL")
+                return
             self.update_debt(debt_id, self.read_json())
         elif parsed.path.startswith("/api/ahorros/"):
-            ahorro_id = int(parsed.path.rsplit("/", 1)[-1])
+            ahorro_id = parse_id_segment(parsed.path.rsplit("/", 1)[-1])
+            if ahorro_id is None:
+                self.send_error(400, "Identificador invalido en la URL")
+                return
             self.update_ahorro(ahorro_id, self.read_json())
         elif parsed.path.startswith("/api/recurring/expenses/"):
-            expense_id = int(parsed.path.rsplit("/", 1)[-1])
+            expense_id = parse_id_segment(parsed.path.rsplit("/", 1)[-1])
+            if expense_id is None:
+                self.send_error(400, "Identificador invalido en la URL")
+                return
             self.update_recurring_expense(expense_id, self.read_json())
         else:
             self.send_error(404)
@@ -1999,22 +2052,40 @@ class App(BaseHTTPRequestHandler):
                     )
             self.send_json({"ok": True})
         elif parsed.path.startswith("/api/transactions/"):
-            transaction_id = int(parsed.path.rsplit("/", 1)[-1])
+            transaction_id = parse_id_segment(parsed.path.rsplit("/", 1)[-1])
+            if transaction_id is None:
+                self.send_error(400, "Identificador invalido en la URL")
+                return
             self.delete_transaction(transaction_id)
         elif parsed.path.startswith("/api/wedding/expenses/"):
-            expense_id = int(parsed.path.rsplit("/", 1)[-1])
+            expense_id = parse_id_segment(parsed.path.rsplit("/", 1)[-1])
+            if expense_id is None:
+                self.send_error(400, "Identificador invalido en la URL")
+                return
             self.delete_wedding_expense(expense_id)
         elif parsed.path.startswith("/api/debts/"):
-            debt_id = int(parsed.path.rsplit("/", 1)[-1])
+            debt_id = parse_id_segment(parsed.path.rsplit("/", 1)[-1])
+            if debt_id is None:
+                self.send_error(400, "Identificador invalido en la URL")
+                return
             self.delete_debt(debt_id)
         elif parsed.path.startswith("/api/ahorros/"):
-            ahorro_id = int(parsed.path.rsplit("/", 1)[-1])
+            ahorro_id = parse_id_segment(parsed.path.rsplit("/", 1)[-1])
+            if ahorro_id is None:
+                self.send_error(400, "Identificador invalido en la URL")
+                return
             self.delete_ahorro(ahorro_id)
         elif parsed.path.startswith("/api/house/payments/"):
-            payment_id = int(parsed.path.rsplit("/", 1)[-1])
+            payment_id = parse_id_segment(parsed.path.rsplit("/", 1)[-1])
+            if payment_id is None:
+                self.send_error(400, "Identificador invalido en la URL")
+                return
             self.delete_house_payment(payment_id)
         elif parsed.path.startswith("/api/recurring/expenses/"):
-            expense_id = int(parsed.path.rsplit("/", 1)[-1])
+            expense_id = parse_id_segment(parsed.path.rsplit("/", 1)[-1])
+            if expense_id is None:
+                self.send_error(400, "Identificador invalido en la URL")
+                return
             self.delete_recurring_expense(expense_id)
         else:
             self.send_error(404)
@@ -2411,13 +2482,24 @@ class App(BaseHTTPRequestHandler):
         description = description[:75]
         now = datetime.now().isoformat(timespec="seconds")
         with db_connection() as conn:
+            ahorro_id = None
+            if tx_type == "Venta USD" and account == SAVINGS_ACCOUNT:
+                # La venta de USD depositada en Banrural es, en la practica, un
+                # movimiento de esa cuenta de ahorro: se vincula igual que "Ahorro"
+                # para que build_dashboard/build_reports la excluyan de los totales
+                # y quede junto al resto de savingsTransactions.
+                ahorro = conn.execute(
+                    "SELECT id FROM ahorros WHERE type='Ahorro' AND account=?", (SAVINGS_ACCOUNT,)
+                ).fetchone()
+                if ahorro:
+                    ahorro_id = ahorro["id"]
             cursor = conn.execute(
                 """
                 INSERT INTO transactions
-                (date, type, category, description, account, amount, usd_amount, source_import_id, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)
+                (date, type, category, description, account, amount, usd_amount, source_import_id, ahorro_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
                 """,
-                (date, tx_type, category, description, account, amount, usd_amount_value, now),
+                (date, tx_type, category, description, account, amount, usd_amount_value, ahorro_id, now),
             )
             transaction_id = cursor.lastrowid
             if file:
