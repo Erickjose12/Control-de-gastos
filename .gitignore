@@ -19,6 +19,9 @@ data/*.db-*
 data/*.sqlite
 data/*.sqlite3
 
+# Backups (contienen datos financieros reales)
+backups/
+
 # Bank exports and sensitive files
 *.pdf
 *.csv
@@ -35,6 +38,7 @@ data/*.sqlite3
 Thumbs.db
 .vscode/
 .idea/
+.claude/
 
 # Logs
 *.log

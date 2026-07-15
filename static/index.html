@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="es">
   <head>
     <meta charset="utf-8" />
@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <section id="loginScreen" class="login-screen" aria-label="Acceso al sistema">
+    <section id="loginScreen" class="login-screen" aria-label="Acceso al sistema" hidden>
       <form id="loginForm" class="login-card">
         <div class="login-brand">
           <span>F</span>
@@ -38,8 +38,8 @@
           <strong>Finanzas Local</strong>
           <span>Control personal</span>
           <div class="brand-actions" aria-label="Acciones de sesion y tema">
-            <button id="logoutBtn" class="logout-button" type="button">Salir</button>
-            <span class="brand-actions-separator" aria-hidden="true">/</span>
+            <button id="logoutBtn" class="logout-button" type="button" hidden>Salir</button>
+            <span class="brand-actions-separator" aria-hidden="true" hidden>/</span>
             <button id="themeToggle" class="theme-toggle" type="button" aria-label="Cambiar a modo claro">
               <span class="theme-toggle-icon" aria-hidden="true">☾</span>
               <span id="themeToggleText">Dark</span>
@@ -48,13 +48,11 @@
         </div>
         <nav class="nav-menu" aria-label="Menu principal">
           <button class="nav-item active" type="button" data-view="summaryView">Dashboard</button>
-          <button class="nav-item" type="button" data-view="movementsView">Movimientos mensuales</button>
-          <button class="nav-item" type="button" data-view="recurringView">Gastos mensuales fijos</button>
-          <button class="nav-item" type="button" data-view="savingsAccountView">Ahorros mensuales</button>
-          <button class="nav-item" type="button" data-view="fundsView">Fondos</button>
+          <button class="nav-item" type="button" data-view="movementsView">Gastos y deudas</button>
+          <button class="nav-item" type="button" data-view="savingsAccountView">Ahorros</button>
           <button class="nav-item" type="button" data-view="savingsView">Venta dolares</button>
           <button class="nav-item" type="button" data-view="weddingView">Gastos de boda</button>
-          <button class="nav-item" type="button" data-view="houseView">Pago de la casa</button>
+          <button class="nav-item" type="button" data-view="houseView">Gastos de la casa</button>
           <button class="nav-item" type="button" data-view="reportsView">Reportes</button>
         </nav>
         <div class="sidebar-note">
@@ -91,8 +89,8 @@
             </article>
             <article class="kpi balance">
               <span>Disponible</span>
-              <p>Cuanto queda para usar despues de gastos y ahorro.</p>
               <strong id="balanceKpi">Q0.00</strong>
+              <div class="kpi-initial">Saldo inicial mensual: <em id="initialBalanceKpi">Q0.00</em></div>
             </article>
           </section>
 
@@ -108,159 +106,170 @@
             </section>
           </section>
 
-          <section class="panel recurring-dashboard-card">
-            <div class="panel-head">
-              <div>
-                <h2>Gastos mensuales fijos</h2>
-                <p>Compromisos mensuales y provision para pagos anuales.</p>
-              </div>
-              <button class="ghost" type="button" data-view-shortcut="recurringView">Ver recurrentes</button>
-            </div>
-            <section class="kpis compact-kpis" aria-label="Resumen de gastos recurrentes">
-              <article class="kpi expense">
-                <span>Compromiso mensual</span>
-                <strong id="recurringDashMonthly">Q0.00</strong>
-              </article>
-              <article class="kpi rate">
-                <span>Provision anual</span>
-                <strong id="recurringDashProvision">Q0.00</strong>
-              </article>
-              <article class="kpi income">
-                <span>Pagado este mes</span>
-                <strong id="recurringDashPaid">Q0.00</strong>
-              </article>
-              <article class="kpi balance">
-                <span>Pendiente este mes</span>
-                <strong id="recurringDashPending">Q0.00</strong>
-              </article>
-            </section>
-          </section>
-
         </section>
 
         <section id="movementsView" class="view-section">
-          <section class="layout movements-import-layout">
-            <section class="panel import-panel">
+          <section class="kpis compact-kpis monthly-control-kpis" aria-label="Control mensual de pagos">
+            <article class="kpi accent-blue">
+              <span>Disponible mensual</span>
+              <strong id="monthlyBudgetKpi">Q 0.00</strong>
+            </article>
+            <article class="kpi expense">
+              <span>Gastos realizados</span>
+              <strong id="monthlyDebitKpi">Q 0.00</strong>
+            </article>
+            <article id="monthlyRemainingCard" class="kpi accent-teal">
+              <span>Restante para pagar</span>
+              <strong id="monthlyRemainingKpi">Q 0.00</strong>
+            </article>
+            <article class="kpi expense">
+              <span>Deuda total</span>
+              <strong id="debtTotalKpi">Q 0.00</strong>
+            </article>
+          </section>
+
+          <section class="layout movements-control-layout">
+            <section class="panel monthly-budget-panel">
               <div class="panel-head">
                 <div>
-                  <h2>Importar Estado de Cuenta</h2>
-                  <p>Soporta Banrural, GYT, Banco Industrial, BAC y archivos CSV.</p>
+                  <h2>Dinero disponible del mes</h2>
+                  <p>Monto que tenes para pagar gastos, efectivo y tarjetas.</p>
                 </div>
-                <button id="clearImportsBtn" class="ghost" type="button">Limpiar bandeja</button>
               </div>
-              <form id="importForm" class="import-form">
-                <div class="import-steps" aria-label="Proceso de importacion">
-                  <span id="importStepUpload" class="import-step active"><strong>1</strong> Subir archivo</span>
-                  <span id="importStepReview" class="import-step"><strong>2</strong> Revisar</span>
-                  <span id="importStepDone" class="import-step"><strong>3</strong> Listo</span>
-                </div>
-
-                <label id="importDropzone" class="import-dropzone" for="fileInput">
-                  <input id="fileInput" name="file" type="file" accept=".csv,.pdf" required />
-                  <span class="dropzone-icon" aria-hidden="true">↑</span>
-                  <strong id="dropzoneTitle">Arrastra tu estado de cuenta aqui</strong>
-                  <span id="selectedFileName">o haz clic para seleccionar el archivo PDF o CSV</span>
-                  <span class="bank-tags" aria-hidden="true">
-                    <span>Banrural</span>
-                    <span>GYT</span>
-                    <span>Banco Industrial</span>
-                    <span>BAC</span>
-                    <span>CSV</span>
-                  </span>
+              <form id="monthlyBudgetForm" class="monthly-budget-form">
+                <label>
+                  Monto mensual disponible
+                  <input id="monthlyBudgetAmount" name="amount" type="number" min="0" step="0.01" placeholder="0.00" />
                 </label>
-
-                <label class="import-rate-field">
-                  Tipo cambio USD
-                  <input id="importExchangeRate" name="exchangeRate" type="number" min="0.0001" step="0.0001" value="7.8000" />
-                </label>
-
-                <div class="import-detected-card" hidden>
-                  <div>
-                    <span class="detected-label">Banco</span>
-                    <select id="bankSelect" name="bank">
-                      <option>GYT</option>
-                      <option>BAC</option>
-                      <option>Banrural</option>
-                      <option>Banco Industrial</option>
-                    </select>
-                  </div>
-                  <div>
-                    <span class="detected-label">Cuenta destino</span>
-                    <select id="accountSelect" name="account"></select>
-                  </div>
-                </div>
-
-                <div class="import-actions">
-                  <button id="importSubmitBtn" class="primary import-main-button" type="submit">Revisar archivo</button>
-                  <button id="cancelImportBtn" class="ghost" type="button" hidden>Cancelar carga</button>
-                </div>
+                <button class="primary" type="submit">Guardar monto</button>
+                <p id="monthlyBudgetStatus" class="status"></p>
               </form>
-              <p id="importStatus" class="status"></p>
             </section>
 
+            <section class="panel cash-expense-panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Registrar gasto mensual</h2>
+                  <p>Para gastos pagados en efectivo que no vienen en estados de cuenta.</p>
+                </div>
+              </div>
+              <form id="cashExpenseForm" class="cash-expense-form">
+                <label class="full-span">
+                  Descripcion
+                  <input id="cashExpenseDescription" name="description" type="text" maxlength="75" placeholder="Gasto en efectivo" />
+                </label>
+                <label>
+                  Fecha
+                  <input id="cashExpenseDate" name="date" type="date" required />
+                </label>
+                <label>
+                  Categoria
+                  <select id="cashExpenseCategory" name="category"></select>
+                </label>
+                <label>
+                  Monto Q
+                  <input name="amount" type="number" min="0.01" step="0.01" placeholder="0.00" required />
+                </label>
+                <input name="type" type="hidden" value="Gasto" />
+                <input name="account" type="hidden" value="Efectivo" />
+                <div class="cash-actions">
+                  <button class="primary" type="submit">Guardar gasto</button>
+                  <p id="cashExpenseStatus" class="status"></p>
+                </div>
+              </form>
+            </section>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2 id="debtFormTitle">Nuevo registro</h2>
+            </div>
+            <form id="debtForm" class="wedding-form">
+              <input name="id" type="hidden" />
+              <label>
+                Tipo de pago
+                <select id="debtType" name="type">
+                  <option value="Tarjeta de credito">Pago Tarjeta de Credito</option>
+                  <option value="Prestamo">Pago Prestamo</option>
+                  <option value="Otro pago">Otros pagos</option>
+                </select>
+              </label>
+              <label>
+                Nombre
+                <input name="name" type="text" maxlength="90" placeholder="Ej. GYT Visa" required />
+              </label>
+              <label class="debt-card-loan-only">
+                Banco
+                <select id="debtBank" name="bank"></select>
+              </label>
+              <label class="debt-card-only">
+                Dia de corte
+                <input name="statementDay" type="number" min="1" max="31" step="1" placeholder="1-31" />
+              </label>
+              <label class="debt-card-loan-only">
+                Dia de pago
+                <input name="dueDay" type="number" min="1" max="31" step="1" placeholder="1-31" />
+              </label>
+              <label class="debt-card-only">
+                Limite de credito Q
+                <input name="creditLimit" type="number" min="0" step="0.01" placeholder="0.00" />
+              </label>
+              <label class="debt-card-only">
+                Limite de credito $
+                <input name="creditLimitUsd" type="number" min="0" step="0.01" placeholder="0.00" />
+              </label>
+              <label class="debt-loan-other-only">
+                <span id="debtAmountLabel">Monto del prestamo</span>
+                <input name="originalAmount" type="number" min="0" step="0.01" placeholder="0.00" />
+              </label>
+              <label class="debt-loan-only">
+                Tasa interes anual %
+                <input name="interestRate" type="number" min="0" step="0.01" placeholder="0.00" />
+              </label>
+              <label class="debt-loan-only">
+                Fecha inicio prestamo
+                <input name="startDate" type="date" />
+              </label>
+              <label class="debt-loan-other-only">
+                <span id="debtEndDateLabel">Fecha fin del prestamo</span>
+                <input name="endDate" type="date" />
+              </label>
+              <label class="debt-loan-only">
+                Cuota mensual
+                <input name="monthlyPayment" type="number" min="0" step="0.01" placeholder="0.00" />
+              </label>
+              <div class="wedding-form-actions">
+                <button id="debtSaveBtn" class="primary" type="submit">Guardar</button>
+                <button id="debtCancelBtn" class="ghost" type="button" hidden>Cancelar edicion</button>
+              </div>
+              <p id="debtStatus" class="status wide-field"></p>
+            </form>
           </section>
 
           <section class="panel">
             <div class="panel-head">
               <div>
-                <h2>Bandeja de revision</h2>
-                <p id="importReviewSummary">Selecciona el archivo para revisar los movimientos antes de guardarlos.</p>
+                <h2>Tus deudas</h2>
+                <p id="debtCount">Sin deudas registradas.</p>
               </div>
-              <button id="commitBtn" class="primary" type="button">Importar registros</button>
-            </div>
-            <div class="import-totals" aria-label="Resumen de creditos y debitos">
-              <article class="import-total-card credit">
-                <span>Creditos</span>
-                <strong id="importCreditTotal">Q 0.00</strong>
-              </article>
-              <article class="import-total-card debit">
-                <span>Debitos</span>
-                <strong id="importDebitTotal">Q 0.00</strong>
-              </article>
-              <article id="importNetCard" class="import-total-card net">
-                <span>Neto</span>
-                <strong id="importNetTotal">Q 0.00</strong>
-              </article>
-              <article class="import-total-card">
-                <span>Registros</span>
-                <strong id="importTotalCount">0</strong>
-              </article>
+              <button id="exportDebtsBtn" class="ghost" type="button">Exportar Excel</button>
             </div>
             <div class="table-tools">
               <label>
-                Buscar en bandeja
-                <input id="importsSearch" type="search" placeholder="Fecha, cuenta, descripcion, tipo, categoria..." />
+                Buscar deuda
+                <input id="debtSearch" type="search" placeholder="Nombre, tipo, banco..." />
               </label>
             </div>
-            <div class="table-wrap">
-              <table class="review-table">
-                <colgroup>
-                  <col class="col-date" />
-                  <col class="col-account" />
-                  <col class="col-description" />
-                  <col class="col-type" />
-                  <col class="col-category" />
-                  <col class="col-money" />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th>Cuenta</th>
-                    <th>Descripcion</th>
-                    <th>Tipo</th>
-                    <th>Categoria</th>
-                    <th>Monto</th>
-                  </tr>
-                </thead>
-                <tbody id="importsBody"></tbody>
-              </table>
-            </div>
+            <div id="debtGrid" class="goal-grid"></div>
           </section>
 
           <section class="panel">
             <div class="panel-head">
               <h2>Movimientos del mes</h2>
-              <button id="deleteSelectedBtn" class="danger" type="button" disabled>Eliminar seleccionados</button>
+              <div class="report-actions">
+                <button id="deleteSelectedBtn" class="danger" type="button" disabled>Eliminar seleccionados</button>
+                <button id="exportTransactionsBtn" class="ghost" type="button">Exportar Excel</button>
+              </div>
             </div>
             <div class="table-tools">
               <label>
@@ -300,319 +309,83 @@
           </section>
         </section>
 
-        <section id="recurringView" class="view-section">
-          <section class="kpis compact-kpis" aria-label="Resumen de gastos recurrentes">
-            <article class="kpi expense">
-              <span>Compromiso mensual</span>
-              <strong id="recurringMonthlyKpi">Q0.00</strong>
-            </article>
-            <article class="kpi rate">
-              <span>Provision para anuales</span>
-              <strong id="recurringProvisionKpi">Q0.00</strong>
-            </article>
-            <article class="kpi income">
-              <span>Pagado este mes</span>
-              <strong id="recurringPaidKpi">Q0.00</strong>
-            </article>
-            <article class="kpi balance">
-              <span>Pendiente este mes</span>
-              <strong id="recurringPendingKpi">Q0.00</strong>
-            </article>
-          </section>
-
-          <section class="panel">
-            <div class="panel-head">
-              <div>
-                <h2 id="recurringFormTitle">Registrar gasto recurrente</h2>
-                <p>Este control no crea movimientos bancarios ni duplica gastos reales.</p>
-              </div>
-            </div>
-            <form id="recurringForm" class="recurring-form">
-              <input name="id" type="hidden" />
-              <label>
-                Nombre
-                <input name="name" type="text" maxlength="90" placeholder="Ej. Internet residencial" required />
-              </label>
-              <label>
-                Categoria
-                <select id="recurringCategory" name="category"></select>
-              </label>
-              <label>
-                Metodo de pago
-                <select id="recurringAccount" name="account"></select>
-              </label>
-              <label>
-                Monto
-                <input name="amount" type="number" min="0.01" step="0.01" placeholder="0.00" required />
-              </label>
-              <label>
-                Frecuencia
-                <select name="frequency">
-                  <option>Mensual</option>
-                  <option>Anual</option>
-                </select>
-              </label>
-              <label>
-                Proxima fecha de cobro
-                <input name="nextDueDate" type="date" />
-              </label>
-              <label>
-                Estado
-                <select name="active">
-                  <option value="1">Activo</option>
-                  <option value="0">Inactivo</option>
-                </select>
-              </label>
-              <div class="recurring-form-actions">
-                <button id="recurringSaveBtn" class="primary" type="submit">Guardar gasto</button>
-                <button id="recurringCancelBtn" class="ghost" type="button" hidden>Cancelar edicion</button>
-              </div>
-              <p id="recurringStatus" class="status wide-field"></p>
-            </form>
-          </section>
-
-          <section class="panel">
-            <div class="panel-head">
-              <div>
-                <h2>Control del mes</h2>
-                <p>Los pagos anuales sin fecha solo aparecen como provision mensual.</p>
-              </div>
-            </div>
-            <div class="table-tools">
-              <label>
-                Buscar gasto recurrente
-                <input id="recurringSearch" type="search" placeholder="Nombre, categoria, metodo de pago, frecuencia..." />
-              </label>
-            </div>
-            <div class="table-wrap">
-              <table class="recurring-table">
-                <colgroup>
-                  <col class="recurring-col-name" />
-                  <col class="recurring-col-category" />
-                  <col class="recurring-col-account" />
-                  <col class="recurring-col-frequency" />
-                  <col class="recurring-col-money" />
-                  <col class="recurring-col-money" />
-                  <col class="recurring-col-date" />
-                  <col class="recurring-col-status" />
-                  <col class="recurring-col-actions" />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th>Gasto</th>
-                    <th>Categoria</th>
-                    <th>Metodo</th>
-                    <th>Frecuencia</th>
-                    <th>Monto</th>
-                    <th>Mensual</th>
-                    <th>Proximo cobro</th>
-                    <th>Estado</th>
-                    <th>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody id="recurringBody"></tbody>
-              </table>
-            </div>
-          </section>
-        </section>
-
         <section id="savingsAccountView" class="view-section">
           <section class="kpis compact-kpis savings-account-kpis" aria-label="Resumen de ahorros">
-            <article class="kpi income">
-              <span>Entradas a Banrural</span>
-              <strong id="savingAccountInKpi">Q0.00</strong>
-            </article>
-            <article class="kpi expense">
-              <span>Salidas de Banrural</span>
-              <strong id="savingAccountOutKpi">Q0.00</strong>
-            </article>
             <article class="kpi balance">
-              <span>Neto ahorrado</span>
-              <strong id="savingAccountNetKpi">Q0.00</strong>
+              <span>Saldo total</span>
+              <strong id="ahorroTotalKpi">Q0.00</strong>
             </article>
             <article class="kpi rate">
-              <span>Registros</span>
-              <strong id="savingAccountCountKpi">0</strong>
+              <span>Cuentas registradas</span>
+              <strong id="ahorroCountKpi">0</strong>
             </article>
           </section>
 
-          <section class="panel manual-panel">
+          <section class="panel">
             <div class="panel-head">
-              <h2>Registrar ahorro</h2>
+              <h2 id="ahorroFormTitle">Nuevo ahorro</h2>
             </div>
-            <form id="savingsForm" class="manual-form" enctype="multipart/form-data">
+            <form id="ahorroForm" class="wedding-form">
+              <input name="id" type="hidden" />
               <label>
-                Movimiento
-                <select name="type">
-                  <option value="Ahorro">Entrada</option>
-                  <option value="Gasto">Salida</option>
-                </select>
+                Tipo
+                <select id="ahorroType" name="type"></select>
               </label>
-              <input name="category" type="hidden" value="Ahorro Banrural" />
-              <input name="account" type="hidden" value="Banrural - Cuenta ahorro" />
               <label>
-                Fecha
-                <input name="date" type="date" required />
+                Nombre
+                <input name="name" type="text" maxlength="90" placeholder="Ej. Ahorro Banrural" required />
+              </label>
+              <label>
+                Banco
+                <select id="ahorroBank" name="bank"></select>
               </label>
               <label>
                 Cuenta
-                <input type="text" value="Banrural - Cuenta ahorro" disabled />
+                <select id="ahorroAccount" name="account"></select>
               </label>
               <label>
-                Monto Q
-                <input name="amount" type="number" min="0.01" step="0.01" placeholder="0.00" required />
+                Saldo inicial
+                <input name="initialBalance" type="number" min="0" step="0.01" placeholder="0.00" />
               </label>
-              <label class="savings-half-field">
-                Descripcion
-                <input name="description" type="text" maxlength="75" placeholder="Descripcion" />
+              <label class="ahorro-fondo-only">
+                Aporte mensual esperado
+                <input name="monthlyTarget" type="number" min="0" step="0.01" placeholder="0.00" />
               </label>
-              <label class="savings-half-field">
-                Boleta o evidencia
-                <input name="attachment" type="file" accept=".pdf,.png,.jpg,.jpeg,.jfif,.webp,.gif,.bmp,.tif,.tiff,.heic,.heif,application/pdf,image/*" />
-              </label>
-              <button class="primary" type="submit">Guardar ahorro</button>
-              <p id="savingsStatus" class="status wide-field"></p>
+              <div class="wedding-form-actions">
+                <button id="ahorroSaveBtn" class="primary" type="submit">Guardar</button>
+                <button id="ahorroCancelBtn" class="ghost" type="button" hidden>Cancelar edicion</button>
+              </div>
+              <p id="ahorroStatus" class="status wide-field"></p>
             </form>
           </section>
 
           <section class="panel">
             <div class="panel-head">
               <div>
-                <h2>Ahorros mensuales</h2>
-                <p>Movimientos de la cuenta Banrural usada para ahorro.</p>
+                <h2>Tus ahorros</h2>
+                <p id="ahorroCount">Sin ahorros registrados.</p>
               </div>
+              <button id="exportSavingsBtn" class="ghost" type="button">Exportar Excel</button>
             </div>
             <div class="table-tools">
               <label>
                 Buscar ahorro
-                <input id="savingsSearch" type="search" placeholder="Fecha, descripcion, tipo, monto..." />
+                <input id="ahorroSearch" type="search" placeholder="Nombre, banco, cuenta..." />
               </label>
             </div>
-            <div class="table-wrap">
-              <table class="savings-table">
-                <colgroup>
-                  <col class="col-date" />
-                  <col class="col-type" />
-                  <col class="col-category" />
-                  <col class="col-account" />
-                  <col class="col-description" />
-                  <col class="col-money" />
-                  <col class="col-actions" />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th>Tipo</th>
-                    <th>Categoria</th>
-                    <th>Cuenta</th>
-                    <th>Descripcion</th>
-                    <th>Monto</th>
-                    <th>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody id="savingsBody"></tbody>
-              </table>
-            </div>
-          </section>
-        </section>
-
-        <section id="fundsView" class="view-section">
-          <section class="kpis compact-kpis funds-kpis" aria-label="Resumen de fondos">
-            <article class="kpi rate">
-              <span>Aporte esperado</span>
-              <strong id="fundExpectedKpi">Q500.00</strong>
-            </article>
-            <article class="kpi income">
-              <span>Aportado este mes</span>
-              <strong id="fundPaidKpi">Q0.00</strong>
-            </article>
-            <article class="kpi balance">
-              <span>Pendiente</span>
-              <strong id="fundPendingKpi">Q500.00</strong>
-            </article>
-            <article class="kpi">
-              <span>Registros</span>
-              <strong id="fundCountKpi">0</strong>
-            </article>
-          </section>
-
-          <section class="panel manual-panel">
-            <div class="panel-head">
-              <h2>Registrar aporte a fondo</h2>
-            </div>
-            <form id="fundForm" class="manual-form" enctype="multipart/form-data">
-              <input name="type" type="hidden" value="Transferencia" />
-              <input name="category" type="hidden" value="Fondo mensual" />
-              <input name="account" type="hidden" value="GYT - Cuenta ahorro sueldo" />
-              <label>
-                Fecha
-                <input name="date" type="date" required />
-              </label>
-              <label>
-                Cuenta origen
-                <input type="text" value="GYT - Cuenta ahorro sueldo" disabled />
-              </label>
-              <label>
-                Monto Q
-                <input name="amount" type="number" min="0.01" step="0.01" value="500.00" required />
-              </label>
-              <label class="fund-half-field">
-                Descripcion
-                <input name="description" type="text" maxlength="75" value="Aporte mensual a fondo" placeholder="Descripcion" />
-              </label>
-              <label class="fund-half-field">
-                Boleta o evidencia
-                <input name="attachment" type="file" accept=".pdf,.png,.jpg,.jpeg,.jfif,.webp,.gif,.bmp,.tif,.tiff,.heic,.heif,application/pdf,image/*" />
-              </label>
-              <button class="primary" type="submit">Guardar aporte</button>
-              <p id="fundStatus" class="status wide-field"></p>
-            </form>
-          </section>
-
-          <section class="panel">
-            <div class="panel-head">
-              <div>
-                <h2>Fondos del mes</h2>
-                <p>Aportes debitados desde la cuenta principal de GYT.</p>
-              </div>
-            </div>
-            <div class="table-tools">
-              <label>
-                Buscar fondo
-                <input id="fundSearch" type="search" placeholder="Fecha, descripcion, monto..." />
-              </label>
-            </div>
-            <div class="table-wrap">
-              <table class="fund-table">
-                <colgroup>
-                  <col class="col-date" />
-                  <col class="col-type" />
-                  <col class="col-account" />
-                  <col class="col-description" />
-                  <col class="col-money" />
-                  <col class="col-actions" />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th>Tipo</th>
-                    <th>Cuenta</th>
-                    <th>Descripcion</th>
-                    <th>Monto</th>
-                    <th>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody id="fundBody"></tbody>
-              </table>
-            </div>
+            <div id="ahorroGrid" class="goal-grid"></div>
           </section>
         </section>
 
         <section id="savingsView" class="view-section">
           <section class="kpis compact-kpis dollar-sale-kpis" aria-label="Resumen de venta de dolares">
             <article class="kpi income">
-              <span>Ventas USD</span>
+              <span>Ventas Quetzales</span>
               <strong id="usdSaleKpi">Q0.00</strong>
+            </article>
+            <article class="kpi income">
+              <span>Ventas USD</span>
+              <strong id="usdSaleUsdKpi">$0.00</strong>
             </article>
             <article class="kpi">
               <span>Registros</span>
@@ -636,27 +409,27 @@
                 </select>
               </label>
               <label>
-                Cuenta
+                Cuenta venta
                 <select id="manualAccount" name="account"></select>
+              </label>
+              <label>
+                Monto USD
+                <input name="usdAmount" type="number" min="0" step="0.01" placeholder="Opcional" />
+              </label>
+              <label>
+                Tipo cambio
+                <input id="exchangeRateInput" name="exchangeRate" type="number" min="0" step="0.0001" placeholder="0.0000" />
               </label>
               <label>
                 Monto Q
                 <input name="amount" type="number" min="0.01" step="0.01" placeholder="0.00" required />
               </label>
               <label>
-                USD
-                <input name="usdAmount" type="number" min="0" step="0.01" placeholder="Opcional" />
-              </label>
-              <label>
-                Tipo cambio
-                <input id="exchangeRateInput" name="exchangeRate" type="number" min="0" step="0.0001" placeholder="Auto USD-GTQ" />
-              </label>
-              <label class="wide-field">
                 Descripcion
                 <input name="description" type="text" maxlength="75" placeholder="Descripcion" />
               </label>
-              <label class="wide-field">
-                Boleta o evidencia
+              <label>
+                Boleta
                 <input name="attachment" type="file" accept=".pdf,.png,.jpg,.jpeg,.jfif,.webp,.gif,.bmp,.tif,.tiff,.heic,.heif,application/pdf,image/*" />
               </label>
               <button class="primary" type="submit">Guardar</button>
@@ -670,6 +443,7 @@
                 <h2>Ventas de dolares del mes</h2>
                 <p>Registros manuales de venta USD.</p>
               </div>
+              <button id="exportSalesBtn" class="ghost" type="button">Exportar Excel</button>
             </div>
             <div class="table-tools">
               <label>
@@ -696,7 +470,7 @@
                     <th>Cuenta</th>
                     <th>Descripcion</th>
                     <th>Monto</th>
-                    <th>Boleta</th>
+                    <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody id="savingSaleBody"></tbody>
@@ -785,26 +559,24 @@
             </section>
           </section>
 
-          <section class="report-grid">
-            <section class="panel">
-              <div class="panel-head">
-                <div>
-                  <h2>Metodos de pago recurrentes</h2>
-                  <p>Compromiso mensual equivalente por metodo.</p>
-                </div>
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Flujo por cuenta</h2>
+                <p>Entradas y salidas netas del mes.</p>
               </div>
-              <div id="reportPaymentMethods" class="report-breakdown"></div>
-            </section>
+            </div>
+            <div id="reportAccountFlow" class="report-breakdown"></div>
+          </section>
 
-            <section class="panel">
-              <div class="panel-head">
-                <div>
-                  <h2>Flujo por cuenta</h2>
-                  <p>Entradas y salidas netas del mes.</p>
-                </div>
+          <section id="reportGoalsPanel" class="panel" hidden>
+            <div class="panel-head">
+              <div>
+                <h2>Metas y proyectos</h2>
+                <p>Avance del presupuesto de boda y de los pagos de la casa.</p>
               </div>
-              <div id="reportAccountFlow" class="report-breakdown"></div>
-            </section>
+            </div>
+            <div id="reportGoalsSummary" class="report-bank-summary"></div>
           </section>
 
           <section class="panel">
@@ -881,9 +653,10 @@
 
           <section class="panel">
             <div class="panel-head">
-              <h2>Registrar gasto de boda</h2>
+              <h2 id="weddingFormTitle">Registrar gasto de boda</h2>
             </div>
             <form id="weddingExpenseForm" class="wedding-form" enctype="multipart/form-data">
+              <input name="id" type="hidden" />
               <label>
                 Concepto
                 <input name="description" type="text" maxlength="90" placeholder="Ej. Fotografia" required />
@@ -894,29 +667,38 @@
               </label>
               <label>
                 Fecha de vencimiento
-                <input name="date" type="date" required />
+                <input name="date" type="date" />
               </label>
               <label>
                 Monto total
                 <input name="amount" type="number" min="0.01" step="0.01" placeholder="0.00" required />
               </label>
-              <label>
+              <label id="weddingInitialPaymentField">
                 Abono inicial
                 <input name="initialPayment" type="number" min="0" step="0.01" placeholder="0.00" />
               </label>
-              <label>
+              <label id="weddingPaymentDateField">
                 Fecha de abono
                 <input name="paymentDate" type="date" />
               </label>
-              <label class="wide-field">
-                Documento o evidencia
-                <input name="attachment" type="file" accept=".pdf,.png,.jpg,.jpeg,.jfif,.webp,.gif,.bmp,.tif,.tiff,.heic,.heif,application/pdf,image/*" />
-              </label>
-              <label class="wide-field">
-                Proveedor
-                <input name="vendor" type="text" maxlength="90" placeholder="Nombre del proveedor" />
-              </label>
-              <button class="primary" type="submit">Guardar gasto</button>
+              <div class="wide-field field-trio">
+                <label id="weddingInitialPaymentAttachmentField">
+                  Boleta del abono inicial
+                  <input name="initialPaymentAttachment" type="file" accept=".pdf,.png,.jpg,.jpeg,.jfif,.webp,.gif,.bmp,.tif,.tiff,.heic,.heif,application/pdf,image/*" />
+                </label>
+                <label>
+                  Documento o evidencia
+                  <input name="attachment" type="file" accept=".pdf,.png,.jpg,.jpeg,.jfif,.webp,.gif,.bmp,.tif,.tiff,.heic,.heif,application/pdf,image/*" />
+                </label>
+                <label>
+                  Proveedor
+                  <input name="vendor" type="text" maxlength="90" placeholder="Nombre del proveedor" />
+                </label>
+              </div>
+              <div class="wedding-form-actions">
+                <button id="weddingSaveBtn" class="primary" type="submit">Guardar gasto</button>
+                <button id="weddingCancelBtn" class="ghost" type="button" hidden>Cancelar edicion</button>
+              </div>
               <p id="weddingStatus" class="status wide-field"></p>
             </form>
           </section>
@@ -924,6 +706,7 @@
           <section class="panel">
             <div class="panel-head">
               <h2>Gastos registrados</h2>
+              <button id="exportWeddingCsvBtn" class="ghost" type="button">Exportar Excel</button>
             </div>
             <div class="table-tools">
               <label>
@@ -1007,6 +790,7 @@
                 <h2>Pagos registrados</h2>
                 <p>Pagos de casa del mes seleccionado.</p>
               </div>
+              <button id="exportHouseBtn" class="ghost" type="button">Exportar Excel</button>
             </div>
             <div class="table-tools">
               <label>
@@ -1030,6 +814,7 @@
             </div>
           </section>
         </section>
+
       </main>
     </div>
 
@@ -1040,7 +825,7 @@
           <h2 id="viewTransactionTitle">Detalle del movimiento</h2>
           <button class="icon-button" type="button" data-close-modal aria-label="Cerrar">X</button>
         </div>
-        <div id="transactionDetail" class="detail-grid"></div>
+        <div id="transactionDetail" class="detail-view"></div>
         <div class="modal-actions view-actions">
           <button class="ghost danger-soft" type="button" data-close-modal>Cerrar</button>
         </div>
@@ -1101,12 +886,12 @@
 
     <div id="weddingPaymentModal" class="modal" hidden>
       <div class="modal-backdrop" data-close-modal></div>
-      <section class="modal-card small" role="dialog" aria-modal="true" aria-labelledby="weddingPaymentTitle">
+      <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="weddingPaymentTitle">
         <div class="modal-head">
-          <h2 id="weddingPaymentTitle">Agregar abono</h2>
+          <h2 id="weddingPaymentTitle">Registrar abono</h2>
           <button class="icon-button" type="button" data-close-modal aria-label="Cerrar">X</button>
         </div>
-        <form id="weddingPaymentForm" class="modal-form">
+        <form id="weddingPaymentForm" class="modal-form" enctype="multipart/form-data">
           <input name="expenseId" type="hidden" />
           <label>
             Fecha
@@ -1120,11 +905,43 @@
             Nota
             <input name="note" type="text" maxlength="90" placeholder="Ej. Segundo abono" />
           </label>
+          <label class="wide-field">
+            Boleta o evidencia
+            <input name="attachment" type="file" accept=".pdf,.png,.jpg,.jpeg,.jfif,.webp,.gif,.bmp,.tif,.tiff,.heic,.heif,application/pdf,image/*" />
+          </label>
           <div class="modal-actions form-actions">
             <button class="ghost" type="button" data-close-modal>Cancelar</button>
             <button class="primary" type="submit">Guardar abono</button>
           </div>
         </form>
+      </section>
+    </div>
+    <div id="weddingReceiptsModal" class="modal" hidden>
+      <div class="modal-backdrop" data-close-modal></div>
+      <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="weddingReceiptsTitle">
+        <div class="modal-head">
+          <h2 id="weddingReceiptsTitle">Boletas del gasto</h2>
+          <button class="icon-button" type="button" data-close-modal aria-label="Cerrar">X</button>
+        </div>
+        <div id="weddingPaymentHistory" class="wedding-payment-history"></div>
+        <div class="modal-actions view-actions">
+          <button id="weddingReceiptsAddBtn" class="primary" type="button" hidden>Agregar abono</button>
+          <button class="ghost danger-soft" type="button" data-close-modal>Cerrar</button>
+        </div>
+      </section>
+    </div>
+    <div id="weddingExpenseDetailModal" class="modal" hidden>
+      <div class="modal-backdrop" data-close-modal></div>
+      <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="weddingExpenseDetailTitle">
+        <div class="modal-head">
+          <h2 id="weddingExpenseDetailTitle">Informacion del gasto</h2>
+          <button class="icon-button" type="button" data-close-modal aria-label="Cerrar">X</button>
+        </div>
+        <div id="weddingExpenseDetail" class="detail-view"></div>
+        <div class="modal-actions view-actions">
+          <button id="weddingDetailEditBtn" class="ghost" type="button">Editar</button>
+          <button id="weddingDetailDeleteBtn" class="ghost danger-soft" type="button">Eliminar</button>
+        </div>
       </section>
     </div>
     <div id="weddingAttachmentModal" class="modal" hidden>
@@ -1148,6 +965,330 @@
         </form>
       </section>
     </div>
+    <div id="debtPaymentModal" class="modal" hidden>
+      <div class="modal-backdrop" data-close-modal></div>
+      <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="debtPaymentTitle">
+        <div class="modal-head">
+          <h2 id="debtPaymentTitle">Registrar pago</h2>
+          <button class="icon-button" type="button" data-close-modal aria-label="Cerrar">X</button>
+        </div>
+        <form id="debtPaymentForm" class="modal-form" enctype="multipart/form-data">
+          <input name="debtId" type="hidden" />
+          <label>
+            Fecha
+            <input name="date" type="date" required />
+          </label>
+          <label>
+            Monto
+            <input name="amount" type="number" min="0.01" step="0.01" required />
+          </label>
+          <label class="wide-field">
+            Cuenta de origen
+            <select id="debtPaymentAccount" name="originAccount"></select>
+          </label>
+          <label class="wide-field">
+            Nota
+            <input name="note" type="text" maxlength="90" placeholder="Ej. Pago del mes" />
+          </label>
+          <label class="wide-field">
+            Boleta o evidencia
+            <input name="attachment" type="file" accept=".pdf,.png,.jpg,.jpeg,.jfif,.webp,.gif,.bmp,.tif,.tiff,.heic,.heif,application/pdf,image/*" />
+          </label>
+          <p class="status wide-field">El pago creara un movimiento "Pago tarjeta" en Gastos mensuales desde la cuenta de origen.</p>
+          <div class="modal-actions form-actions">
+            <button class="ghost" type="button" data-close-modal>Cancelar</button>
+            <button class="primary" type="submit">Guardar pago</button>
+          </div>
+        </form>
+      </section>
+    </div>
+    <div id="debtReceiptsModal" class="modal" hidden>
+      <div class="modal-backdrop" data-close-modal></div>
+      <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="debtReceiptsTitle">
+        <div class="modal-head">
+          <h2 id="debtReceiptsTitle">Pagos de la deuda</h2>
+          <button class="icon-button" type="button" data-close-modal aria-label="Cerrar">X</button>
+        </div>
+        <div id="debtPaymentHistory" class="wedding-payment-history"></div>
+        <div class="modal-actions view-actions">
+          <button id="debtReceiptsAddBtn" class="primary" type="button">Agregar pago</button>
+          <button class="ghost danger-soft" type="button" data-close-modal>Cerrar</button>
+        </div>
+      </section>
+    </div>
+    <div id="debtDetailModal" class="modal" hidden>
+      <div class="modal-backdrop" data-close-modal></div>
+      <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="debtDetailTitle">
+        <div class="modal-head">
+          <h2 id="debtDetailTitle">Informacion de la deuda</h2>
+          <button class="icon-button" type="button" data-close-modal aria-label="Cerrar">X</button>
+        </div>
+        <div id="debtDetail" class="detail-view"></div>
+        <div class="modal-actions view-actions">
+          <button id="debtDetailReceiptsBtn" class="ghost info-soft" type="button">Ver pagos</button>
+          <button id="debtDetailEditBtn" class="ghost warning-soft" type="button">Editar</button>
+          <button id="debtDetailDeleteBtn" class="ghost danger-soft" type="button">Eliminar</button>
+        </div>
+      </section>
+    </div>
+    <div id="debtAttachmentModal" class="modal" hidden>
+      <div class="modal-backdrop" data-close-modal></div>
+      <section class="modal-card small" role="dialog" aria-modal="true" aria-labelledby="debtAttachmentTitle">
+        <div class="modal-head">
+          <h2 id="debtAttachmentTitle">Adjuntar boleta</h2>
+          <button class="icon-button" type="button" data-close-modal aria-label="Cerrar">X</button>
+        </div>
+        <form id="debtAttachmentForm" class="modal-form" enctype="multipart/form-data">
+          <label class="wide-field">
+            PDF o imagen
+            <input name="attachment" type="file" accept=".pdf,.png,.jpg,.jpeg,.jfif,.webp,.gif,.bmp,.tif,.tiff,.heic,.heif,application/pdf,image/*" required />
+          </label>
+          <p id="debtAttachmentStatus" class="status wide-field"></p>
+          <div class="modal-actions form-actions">
+            <button class="ghost" type="button" data-close-modal>Cancelar</button>
+            <button class="primary" type="submit">Guardar archivo</button>
+          </div>
+        </form>
+      </section>
+    </div>
+    <div id="ahorroMovementModal" class="modal" hidden>
+      <div class="modal-backdrop" data-close-modal></div>
+      <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="ahorroMovementTitle">
+        <div class="modal-head">
+          <h2 id="ahorroMovementTitle">Registrar movimiento</h2>
+          <button class="icon-button" type="button" data-close-modal aria-label="Cerrar">X</button>
+        </div>
+        <form id="ahorroMovementForm" class="modal-form" enctype="multipart/form-data">
+          <input name="ahorroId" type="hidden" />
+          <label id="ahorroMovementDirectionField">
+            Movimiento
+            <select name="direction">
+              <option value="Entrada">Entrada</option>
+              <option value="Salida">Salida</option>
+            </select>
+          </label>
+          <label>
+            Fecha
+            <input name="date" type="date" required />
+          </label>
+          <label>
+            Monto
+            <input name="amount" type="number" min="0.01" step="0.01" required />
+          </label>
+          <label class="wide-field">
+            Descripcion
+            <input name="description" type="text" maxlength="75" placeholder="Descripcion" />
+          </label>
+          <label class="wide-field">
+            Boleta o evidencia
+            <input name="attachment" type="file" accept=".pdf,.png,.jpg,.jpeg,.jfif,.webp,.gif,.bmp,.tif,.tiff,.heic,.heif,application/pdf,image/*" />
+          </label>
+          <div class="modal-actions form-actions">
+            <button class="ghost" type="button" data-close-modal>Cancelar</button>
+            <button class="primary" type="submit">Guardar movimiento</button>
+          </div>
+        </form>
+      </section>
+    </div>
+    <div id="ahorroDetailModal" class="modal" hidden>
+      <div class="modal-backdrop" data-close-modal></div>
+      <section class="modal-card file-modal" role="dialog" aria-modal="true" aria-labelledby="ahorroDetailTitle">
+        <div class="modal-head">
+          <h2 id="ahorroDetailTitle">Informacion del ahorro</h2>
+          <button class="icon-button" type="button" data-close-modal aria-label="Cerrar">X</button>
+        </div>
+        <div id="ahorroDetail" class="detail-view"></div>
+        <section class="panel" style="margin: 0 16px 16px;">
+          <div class="panel-head">
+            <div>
+              <h2>Movimientos</h2>
+              <p id="ahorroDetailMovementsCount">Sin movimientos registrados.</p>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="savings-table">
+              <colgroup>
+                <col class="col-date" />
+                <col class="col-type" />
+                <col class="col-description" />
+                <col class="col-money" />
+                <col class="col-actions" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Tipo</th>
+                  <th>Descripcion</th>
+                  <th>Monto</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="ahorroDetailMovementsBody"></tbody>
+            </table>
+          </div>
+        </section>
+        <div class="modal-actions view-actions">
+          <button id="ahorroDetailMovementBtn" class="ghost success-soft" type="button">Registrar movimiento</button>
+          <button id="ahorroDetailEditBtn" class="ghost warning-soft" type="button">Editar</button>
+          <button id="ahorroDetailDeleteBtn" class="ghost danger-soft" type="button">Eliminar</button>
+        </div>
+      </section>
+    </div>
+    <div id="debtImportModal" class="modal" hidden>
+      <div class="modal-backdrop" data-close-modal></div>
+      <section class="modal-card debt-import-card" role="dialog" aria-modal="true" aria-labelledby="debtImportTitle">
+        <div class="modal-head">
+          <h2 id="debtImportTitle">Importar estado de cuenta</h2>
+          <button class="icon-button" type="button" data-close-modal aria-label="Cerrar">X</button>
+        </div>
+        <div class="debt-import-body">
+          <section class="layout movements-import-layout">
+            <section class="panel import-panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Importar Estado de Cuenta</h2>
+                  <p>Sube el estado de cuenta de esta tarjeta (PDF o CSV).</p>
+                </div>
+                <button id="clearImportsBtn" class="ghost" type="button">Limpiar bandeja</button>
+              </div>
+              <form id="importForm" class="import-form">
+                <div class="import-steps" aria-label="Proceso de importacion">
+                  <span id="importStepUpload" class="import-step active"><strong>1</strong> Subir archivo</span>
+                  <span id="importStepReview" class="import-step"><strong>2</strong> Revisar</span>
+                  <span id="importStepDone" class="import-step"><strong>3</strong> Listo</span>
+                </div>
+
+                <label id="importDropzone" class="import-dropzone" for="fileInput">
+                  <input id="fileInput" name="file" type="file" accept=".csv,.pdf" required />
+                  <span class="dropzone-icon" aria-hidden="true">↑</span>
+                  <strong id="dropzoneTitle">Arrastra tu estado de cuenta aqui</strong>
+                  <span id="selectedFileName">o haz clic para seleccionar el archivo PDF o CSV</span>
+                  <span class="bank-tags" aria-hidden="true">
+                    <span>Banrural</span>
+                    <span>GYT</span>
+                    <span>Banco Industrial</span>
+                    <span>BAC</span>
+                    <span>CSV</span>
+                  </span>
+                </label>
+
+                <input id="importExchangeRate" name="exchangeRate" type="hidden" value="7.8000" />
+
+                <div class="import-detected-card" hidden>
+                  <div>
+                    <span class="detected-label">Banco</span>
+                    <select id="bankSelect" name="bank">
+                      <option>GYT</option>
+                      <option>BAC</option>
+                      <option>Banrural</option>
+                      <option>Banco Industrial</option>
+                    </select>
+                  </div>
+                  <div>
+                    <span class="detected-label">Cuenta destino</span>
+                    <select id="accountSelect" name="account"></select>
+                  </div>
+                </div>
+
+                <div class="import-actions">
+                  <button id="importSubmitBtn" class="primary import-main-button" type="submit">Revisar archivo</button>
+                  <button id="cancelImportBtn" class="ghost" type="button" hidden>Cancelar carga</button>
+                </div>
+              </form>
+              <p id="importExchangeRateNote" class="import-rate-note"></p>
+              <p id="importStatus" class="status"></p>
+            </section>
+
+            <section class="panel review-panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Bandeja de revision</h2>
+                  <p id="importReviewSummary">Selecciona el archivo para revisar los movimientos antes de guardarlos.</p>
+                </div>
+                <button id="commitBtn" class="primary" type="button">Importar registros</button>
+              </div>
+              <div class="import-totals" aria-label="Resumen de creditos y debitos">
+                <article class="import-total-card credit">
+                  <span>Creditos</span>
+                  <strong id="importCreditTotal">Q 0.00</strong>
+                </article>
+                <article class="import-total-card debit">
+                  <span>Debitos</span>
+                  <strong id="importDebitTotal">Q 0.00</strong>
+                </article>
+                <article id="importNetCard" class="import-total-card net">
+                  <span>Neto</span>
+                  <strong id="importNetTotal">Q 0.00</strong>
+                </article>
+                <article class="import-total-card">
+                  <span>Registros</span>
+                  <strong id="importTotalCount">0</strong>
+                </article>
+              </div>
+              <div class="table-tools">
+                <label>
+                  Buscar en bandeja
+                  <input id="importsSearch" type="search" placeholder="Fecha, cuenta, descripcion, tipo, categoria..." />
+                </label>
+              </div>
+              <div class="table-wrap">
+                <table class="review-table">
+                  <colgroup>
+                    <col class="col-date" />
+                    <col class="col-account" />
+                    <col class="col-description" />
+                    <col class="col-type" />
+                    <col class="col-category" />
+                    <col class="col-money" />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>Fecha</th>
+                      <th>Cuenta</th>
+                      <th>Descripcion</th>
+                      <th>Tipo</th>
+                      <th>Categoria</th>
+                      <th>Monto</th>
+                    </tr>
+                  </thead>
+                  <tbody id="importsBody"></tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Gastos de esta tarjeta</h2>
+                <p id="debtImportTxCount">Sin gastos registrados en esta tarjeta.</p>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="review-table">
+                <colgroup>
+                  <col class="col-date" />
+                  <col class="col-description" />
+                  <col class="col-category" />
+                  <col class="col-money" />
+                  <col class="col-actions" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Descripcion</th>
+                    <th>Categoria</th>
+                    <th>Monto</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="debtImportTxBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </section>
+    </div>
     <div id="weddingAttachmentViewModal" class="modal" hidden>
       <div class="modal-backdrop" data-close-modal></div>
       <section class="modal-card file-modal" role="dialog" aria-modal="true" aria-labelledby="weddingAttachmentViewTitle">
@@ -1157,6 +1298,7 @@
         </div>
         <div id="weddingAttachmentViewer" class="file-viewer"></div>
         <div class="modal-actions">
+          <button id="weddingAttachmentViewChangeBtn" class="ghost" type="button" hidden>Cambiar archivo</button>
           <a id="weddingAttachmentOpenLink" class="ghost link-button" href="#" target="_blank" rel="noopener">Abrir aparte</a>
           <button class="primary" type="button" data-close-modal>Cerrar</button>
         </div>
@@ -1186,3 +1328,5 @@
     <script src="/app.js"></script>
   </body>
 </html>
+
+

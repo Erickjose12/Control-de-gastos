@@ -36,19 +36,22 @@ DB = DATA / "finanzas.db"
 WEDDING_FILES = DATA / "wedding_files"
 HOUSE_FILES = DATA / "house_files"
 TRANSACTION_FILES = DATA / "transaction_files"
+DEBT_FILES = DATA / "debt_files"
 DEMO_MODE = os.environ.get("FINANZAS_DEMO", "").lower() in {"1", "true", "yes", "demo"}
 EXCHANGE_RATE_URL = "https://open.er-api.com/v6/latest/USD"
 DEFAULT_USD_GTQ_RATE = 7.8
 LEGACY_WEDDING_DB = ROOT.parent / "Control-de-gastos-de-boda" / "data" / "boda.db"
 APP_HOST = os.environ.get("FINANZAS_HOST", "127.0.0.1")
 APP_PORT = int(os.environ.get("PORT", os.environ.get("FINANZAS_PORT", "8765")))
-AUTH_ENABLED = os.environ.get("FINANZAS_AUTH", "1").lower() not in {"0", "false", "no", "off"}
-AUTH_USER = os.environ.get("FINANZAS_USER", "erick")
-AUTH_PASSWORD = os.environ.get("FINANZAS_PASSWORD", "cambiar-esta-clave")
+AUTH_ENABLED = True
+AUTH_USER = os.environ.get("FINANZAS_USER", "ErickTest")
+AUTH_PASSWORD = os.environ.get("FINANZAS_PASSWORD", "test123")
 AUTH_PASSWORD_HASH = os.environ.get("FINANZAS_PASSWORD_HASH", "")
-SESSION_SECRET = os.environ.get("FINANZAS_SESSION_SECRET") or hashlib.sha256(
-    f"{ROOT}|finanzas-local-dev".encode("utf-8")
-).hexdigest()
+SESSION_SECRET_FROM_ENV = bool(os.environ.get("FINANZAS_SESSION_SECRET"))
+# Sin secreto explicito generamos uno aleatorio por proceso: los tokens no son
+# falsificables aunque no se configure. Contrapartida: las sesiones no sobreviven
+# a un reinicio, algo aceptable para una app de un solo usuario.
+SESSION_SECRET = os.environ.get("FINANZAS_SESSION_SECRET") or secrets.token_hex(32)
 SESSION_COOKIE = "finanzas_session"
 SESSION_TTL_SECONDS = int(os.environ.get("FINANZAS_SESSION_TTL", str(60 * 60 * 12)))
 SECURE_COOKIE = os.environ.get("FINANZAS_SECURE_COOKIE", "").lower() in {"1", "true", "yes", "on"}
@@ -85,12 +88,18 @@ def read_session_token(token: str | None) -> str | None:
     except Exception:
         return None
 
+SAVINGS_ACCOUNT = "Banrural - Cuenta ahorro"
+FUND_ACCOUNT = "GYT - Cuenta ahorro sueldo"
+FUND_CATEGORY = "Fondo mensual"
+FUND_MONTHLY_AMOUNT = 500
+FUND_INITIAL_BALANCE = 6129.74
+
 ACCOUNTS = [
     "GYT - Cuenta ahorro sueldo",
     "GYT - Tarjeta debito",
     "GYT - Tarjeta credito",
     "BAC - Cuenta ahorro USD",
-    "Banrural - Cuenta ahorro",
+    SAVINGS_ACCOUNT,
     "Banco Industrial - Cuenta ahorro",
     "Efectivo",
     "Otro banco",
@@ -113,7 +122,10 @@ EXPENSE_CATEGORIES = [
     "Emergencias",
     "Otros gastos",
 ]
-SAVINGS_CATEGORIES = ["Ahorro Banrural", "Ahorro extra"]
+SAVINGS_CATEGORIES = ["Ahorro Banrural", "Ahorro extra", "Ahorro", "Salida ahorro"]
+AHORRO_CATEGORY_IN = "Ahorro"
+AHORRO_CATEGORY_OUT = "Salida ahorro"
+AHORRO_TYPES = ["Ahorro", "Fondo"]
 TRANSFER_CATEGORIES = ["Pago tarjeta", "Transferencia entre cuentas", "Retiro efectivo", "Fondo mensual"]
 CATEGORIES = INCOME_CATEGORIES + EXPENSE_CATEGORIES + SAVINGS_CATEGORIES + TRANSFER_CATEGORIES
 TRANSACTION_TYPES = ["Ingreso", "Gasto", "Ahorro", "Venta USD", "Transferencia"]
@@ -127,6 +139,9 @@ WEDDING_CATEGORIES = [
     "Invitaciones",
     "Otro",
 ]
+DEBT_TYPES = ["Tarjeta de credito", "Prestamo", "Otro pago"]
+DEBT_BANKS = ["Banrural", "GYT", "BAC", "Banco Industrial", "Banco Promerica"]
+DEBT_PAYMENT_CATEGORY = "Pago tarjeta"
 WEDDING_SAMPLE_EXPENSES = [
     {
         "date": "2026-08-15",
@@ -164,21 +179,8 @@ RECURRING_CATEGORIES = [
     "Ahorro",
     "Otro",
 ]
-RECURRING_ACCOUNTS = ["TC", "Tarjeta de debito", "Efectivo"]
-RECURRING_SAMPLE_EXPENSES = [
-    ("NORDIC GYM_CUOTA GYM", "Salud y bienestar", "Tarjeta de debito", 200.00, "Mensual"),
-    ("Netflix", "Suscripciones", "TC", 76.21, "Mensual"),
-    ("HBO Max", "Suscripciones", "TC", 29.90, "Mensual"),
-    ("Google One", "Suscripciones", "TC", 15.18, "Mensual"),
-    ("Crunchyroll", "Suscripciones", "TC", 38.45, "Mensual"),
-    ("Microsoft OneDrive", "Suscripciones", "TC", 152.49, "Anual"),
-    ("Tigo Residencial", "Servicios", "TC", 344.00, "Mensual"),
-    ("Disney plus", "Suscripciones", "TC", 129.61, "Mensual"),
-    ("awesomescreenshot", "Suscripciones", "TC", 61.03, "Mensual"),
-    ("Chatgpt y CODEX", "Suscripciones", "TC", 152.57, "Mensual"),
-    ("Cuota Casas", "Vivienda", "Efectivo", 1000.00, "Mensual"),
-    ("CUOTA FONDO", "Ahorro", "Tarjeta de debito", 510.00, "Mensual"),
-]
+RECURRING_SAVINGS_ACCOUNT = "Banrural - Cuenta ahorro"
+RECURRING_PAYMENT_METHODS = ["TC", "Tarjeta de debito", "Efectivo"]
 DEMO_RECURRING_SAMPLE_EXPENSES = [
     ("Internet casa", "Servicios", "TC", 325.00, "Mensual"),
     ("Streaming familiar", "Suscripciones", "TC", 89.00, "Mensual"),
@@ -189,7 +191,7 @@ DEMO_RECURRING_SAMPLE_EXPENSES = [
 
 DATE_RE = re.compile(r"^(\d{2}/\d{2}/\d{4})\s+(\d+)\s+(.*)$")
 AMOUNT_RE = re.compile(r"(-?Q[\d,]+\.\d{2})\s+(Q[\d,]+\.\d{2})$")
-CARD_ENTRY_RE = re.compile(r"^(\d{2}/\d{2}/\d{4})\s+(\S+)\s+(.*?)\s+(-?(?:QTZ|DOL))\s+([\d,]+\.\d{2})$")
+CARD_ENTRY_RE = re.compile(r"^(\d{2}/\d{2}/\d{4})\s+(\S+)\s+(.*?)\s+(-?(?:QTZ|DOL))\s+([\d,]+\.\d{2})(?:\s*\d{1,3})?$")
 PDF_DATE_RE = re.compile(r"\b(\d{4}-\d{2}-\d{2}|\d{2}/\d{2}/\d{4}|\d{2}-\d{2}-\d{4})\b")
 PDF_MONEY_RE = re.compile(r"-?\s*Q?\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})|-?\s*Q?\s*\d+\.\d{2}")
 
@@ -215,6 +217,7 @@ def init_db() -> None:
     WEDDING_FILES.mkdir(parents=True, exist_ok=True)
     HOUSE_FILES.mkdir(parents=True, exist_ok=True)
     TRANSACTION_FILES.mkdir(parents=True, exist_ok=True)
+    DEBT_FILES.mkdir(parents=True, exist_ok=True)
     with db_connection() as conn:
         conn.executescript(
             """
@@ -275,6 +278,56 @@ def init_db() -> None:
               FOREIGN KEY (expense_id) REFERENCES wedding_expenses(id) ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS debts (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              type TEXT NOT NULL,
+              name TEXT NOT NULL,
+              bank TEXT NOT NULL,
+              current_balance REAL NOT NULL DEFAULT 0,
+              credit_limit REAL,
+              original_amount REAL,
+              interest_rate REAL,
+              statement_day INTEGER,
+              due_day INTEGER,
+              min_payment REAL,
+              monthly_payment REAL,
+              balance_usd REAL,
+              created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS debt_payments (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              debt_id INTEGER NOT NULL,
+              date TEXT NOT NULL,
+              amount REAL NOT NULL CHECK (amount > 0),
+              note TEXT NOT NULL DEFAULT '',
+              origin_account TEXT,
+              transaction_id INTEGER,
+              created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              FOREIGN KEY (debt_id) REFERENCES debts(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS ahorros (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              type TEXT NOT NULL DEFAULT 'Ahorro',
+              name TEXT NOT NULL,
+              bank TEXT NOT NULL,
+              account TEXT NOT NULL,
+              initial_balance REAL NOT NULL DEFAULT 0,
+              monthly_target REAL NOT NULL DEFAULT 0,
+              created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS fondos (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              name TEXT NOT NULL,
+              bank TEXT NOT NULL,
+              account TEXT NOT NULL,
+              initial_balance REAL NOT NULL DEFAULT 0,
+              monthly_target REAL NOT NULL DEFAULT 0,
+              created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS house_payments (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               payment_date TEXT NOT NULL,
@@ -309,20 +362,49 @@ def init_db() -> None:
             """
         )
         conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS monthly_budgets (
+                month TEXT PRIMARY KEY,
+                amount REAL NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
             "INSERT OR IGNORE INTO wedding_settings (key, value) VALUES ('budget', '60000')"
         )
         ensure_column(conn, "wedding_expenses", "attachment_name", "TEXT")
         ensure_column(conn, "wedding_expenses", "attachment_path", "TEXT")
         ensure_column(conn, "wedding_expenses", "attachment_mime", "TEXT")
+        ensure_column(conn, "wedding_payments", "attachment_name", "TEXT")
+        ensure_column(conn, "wedding_payments", "attachment_path", "TEXT")
+        ensure_column(conn, "wedding_payments", "attachment_mime", "TEXT")
         ensure_column(conn, "transactions", "attachment_name", "TEXT")
         ensure_column(conn, "transactions", "attachment_path", "TEXT")
         ensure_column(conn, "transactions", "attachment_mime", "TEXT")
+        ensure_column(conn, "transactions", "usd_amount", "REAL")
+        ensure_column(conn, "debt_payments", "attachment_name", "TEXT")
+        ensure_column(conn, "debt_payments", "attachment_path", "TEXT")
+        ensure_column(conn, "debt_payments", "attachment_mime", "TEXT")
+        ensure_column(conn, "imports", "debt_id", "INTEGER")
+        ensure_column(conn, "transactions", "debt_id", "INTEGER")
+        ensure_column(conn, "debts", "balance_usd", "REAL")
+        ensure_column(conn, "debts", "credit_limit_usd", "REAL")
+        ensure_column(conn, "debts", "start_date", "TEXT")
+        ensure_column(conn, "debts", "end_date", "TEXT")
+        ensure_column(conn, "transactions", "ahorro_id", "INTEGER")
+        ensure_column(conn, "transactions", "fund_id", "INTEGER")
+        ensure_column(conn, "ahorros", "type", "TEXT NOT NULL DEFAULT 'Ahorro'")
+        ensure_column(conn, "ahorros", "monthly_target", "REAL NOT NULL DEFAULT 0")
         migrate_existing_data(conn)
+        migrate_usd_amount_backfill(conn)
         if not DEMO_MODE:
             migrate_wedding_data(conn)
-        seed_recurring_expenses(conn)
         migrate_recurring_accounts(conn)
+        migrate_savings_and_funds(conn)
+        migrate_fondos_into_ahorros(conn)
         if DEMO_MODE:
+            seed_recurring_expenses(conn)
             seed_demo_data(conn)
 
 
@@ -337,14 +419,13 @@ def seed_recurring_expenses(conn: sqlite3.Connection) -> None:
     if count:
         return
     now = datetime.now().isoformat(timespec="seconds")
-    sample_expenses = DEMO_RECURRING_SAMPLE_EXPENSES if DEMO_MODE else RECURRING_SAMPLE_EXPENSES
     conn.executemany(
         """
         INSERT INTO recurring_expenses
         (name, category, account, amount, frequency, next_due_date, active, created_at)
         VALUES (?, ?, ?, ?, ?, NULL, 1, ?)
         """,
-        [(*expense, now) for expense in sample_expenses],
+        [(*expense, now) for expense in DEMO_RECURRING_SAMPLE_EXPENSES],
     )
 
 
@@ -428,6 +509,75 @@ def migrate_recurring_accounts(conn: sqlite3.Connection) -> None:
     conn.execute("UPDATE recurring_expenses SET account='Efectivo' WHERE account='Otro'")
 
 
+def migrate_savings_and_funds(conn: sqlite3.Connection) -> None:
+    now = datetime.now().isoformat(timespec="seconds")
+    ahorro = conn.execute(
+        "SELECT id FROM ahorros WHERE type='Ahorro' AND account=?", (SAVINGS_ACCOUNT,)
+    ).fetchone()
+    if not ahorro:
+        cur = conn.execute(
+            "INSERT INTO ahorros (type, name, bank, account, initial_balance, created_at) VALUES ('Ahorro', ?, ?, ?, 0, ?)",
+            ("Ahorro Banrural", "Banrural", SAVINGS_ACCOUNT, now),
+        )
+        ahorro_id = cur.lastrowid
+    else:
+        ahorro_id = ahorro["id"]
+    conn.execute(
+        "UPDATE transactions SET ahorro_id=? WHERE account=? AND ahorro_id IS NULL",
+        (ahorro_id, SAVINGS_ACCOUNT),
+    )
+
+    fondo = conn.execute(
+        "SELECT id FROM ahorros WHERE type='Fondo' AND account=? AND name=?", (FUND_ACCOUNT, "Fondo mensual")
+    ).fetchone()
+    if not fondo:
+        cur = conn.execute(
+            """
+            INSERT INTO ahorros (type, name, bank, account, initial_balance, monthly_target, created_at)
+            VALUES ('Fondo', ?, ?, ?, ?, ?, ?)
+            """,
+            ("Fondo mensual", "GYT", FUND_ACCOUNT, FUND_INITIAL_BALANCE, FUND_MONTHLY_AMOUNT, now),
+        )
+        fondo_id = cur.lastrowid
+    else:
+        fondo_id = fondo["id"]
+    conn.execute(
+        """
+        UPDATE transactions SET ahorro_id=?
+        WHERE account=? AND type='Transferencia' AND category=? AND ahorro_id IS NULL
+        """,
+        (fondo_id, FUND_ACCOUNT, FUND_CATEGORY),
+    )
+
+
+def migrate_fondos_into_ahorros(conn: sqlite3.Connection) -> None:
+    fondo_rows = conn.execute("SELECT * FROM fondos").fetchall()
+    for fondo in fondo_rows:
+        existing = conn.execute(
+            "SELECT id FROM ahorros WHERE type='Fondo' AND name=? AND account=?",
+            (fondo["name"], fondo["account"]),
+        ).fetchone()
+        if existing:
+            ahorro_id = existing["id"]
+        else:
+            cur = conn.execute(
+                """
+                INSERT INTO ahorros (type, name, bank, account, initial_balance, monthly_target, created_at)
+                VALUES ('Fondo', ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    fondo["name"], fondo["bank"], fondo["account"],
+                    fondo["initial_balance"], fondo["monthly_target"], fondo["created_at"],
+                ),
+            )
+            ahorro_id = cur.lastrowid
+        conn.execute(
+            "UPDATE transactions SET ahorro_id=?, fund_id=NULL WHERE fund_id=?",
+            (ahorro_id, fondo["id"]),
+        )
+        conn.execute("DELETE FROM fondos WHERE id=?", (fondo["id"],))
+
+
 def migrate_existing_data(conn: sqlite3.Connection) -> None:
     replacements = [
         ("GYT - Cuenta sueldo", "GYT - Cuenta ahorro sueldo"),
@@ -460,6 +610,20 @@ def migrate_existing_data(conn: sqlite3.Connection) -> None:
         """
     )
     migrate_import_bank_accounts(conn)
+
+
+def migrate_usd_amount_backfill(conn: sqlite3.Connection) -> None:
+    rows = conn.execute(
+        "SELECT id, description FROM transactions WHERE type='Venta USD' AND usd_amount IS NULL"
+    ).fetchall()
+    for row in rows:
+        match = re.search(r"USD\s+([\d,]+(?:\.\d+)?)", row["description"] or "")
+        if not match:
+            continue
+        usd_amount = float(match.group(1).replace(",", ""))
+        conn.execute(
+            "UPDATE transactions SET usd_amount=? WHERE id=?", (usd_amount, row["id"])
+        )
 
 
 def bank_from_source_name(source_name: str) -> str:
@@ -498,6 +662,11 @@ def migrate_import_bank_accounts(conn: sqlite3.Connection) -> None:
 
 def migrate_wedding_data(conn: sqlite3.Connection) -> None:
     if not LEGACY_WEDDING_DB.exists():
+        return
+    already_migrated = conn.execute(
+        "SELECT value FROM wedding_settings WHERE key='legacy_migrated'"
+    ).fetchone()
+    if already_migrated:
         return
     legacy = sqlite3.connect(LEGACY_WEDDING_DB)
     legacy.row_factory = sqlite3.Row
@@ -559,6 +728,10 @@ def migrate_wedding_data(conn: sqlite3.Connection) -> None:
                     row["created_at"],
                 ),
             )
+        conn.execute(
+            "INSERT INTO wedding_settings (key, value) VALUES ('legacy_migrated', '1') "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+        )
     finally:
         legacy.close()
 
@@ -616,6 +789,25 @@ def normalize_date(value: str) -> str:
         except ValueError:
             pass
     return text
+
+
+def optional_float(value) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def optional_day(value) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        day = int(float(value))
+    except (TypeError, ValueError):
+        return None
+    return day if 1 <= day <= 31 else None
 
 
 def infer_product(account: str) -> str:
@@ -696,7 +888,9 @@ def suggest_type(description: str, signed_amount: float, product: str = "") -> s
     if any(token in desc for token in ("PAGO TARJETA", "MASTER CARD", "VISA")):
         return "Transferencia"
     if any(token in desc for token in ("BANRURAL", "AHORRO")):
-        return "Ahorro"
+        # "Ahorro" solo debe crearse desde el modulo de Ahorros (que vincula ahorro_id);
+        # clasificar aqui dejaria un movimiento sin cuenta asociada.
+        return "Transferencia"
     return "Gasto"
 
 
@@ -731,7 +925,7 @@ def parse_gyt_pdf(path: Path, source_name: str, exchange_rate: float = DEFAULT_U
         text = page.extract_text() or ""
         for raw_line in text.splitlines():
             line = " ".join(raw_line.strip().split())
-            if not line or line in {"1 2", "1 2 3"}:
+            if not line or re.match(r"^\d{1,3}(\s+\d{1,3}){0,4}$", line):
                 continue
             if line.startswith(("Nombre cuenta:", "Cuenta:", "Saldo inicial", "No. de", "Valor ", "Fecha Doc")):
                 continue
@@ -787,7 +981,7 @@ def parse_gyt_credit_card_text(
     rows = []
     for raw_line in text.splitlines():
         line = " ".join(raw_line.strip().split())
-        if not line or line in {"1", "1 2", "1 2 3"}:
+        if not line or re.match(r"^\d{1,3}(\s+\d{1,3}){0,4}$", line):
             continue
         match = CARD_ENTRY_RE.match(line)
         if not match:
@@ -798,8 +992,7 @@ def parse_gyt_credit_card_text(
         amount = round(original_amount * exchange_rate, 2) if is_usd else original_amount
         desc_upper = description.upper()
         is_adjustment = "AJUSTE" in desc_upper
-        is_credit = "CREDITO" in desc_upper and "DEBITO" not in desc_upper and not currency.startswith("-")
-        signed_amount = amount if is_credit else -amount
+        signed_amount = -amount if currency.startswith("-") else amount
         tx_type = "Ingreso" if signed_amount > 0 else "Gasto"
         if not is_adjustment and any(token in desc_upper for token in ("PAGO TARJETA", "MASTER CARD", "VISA")):
             tx_type = "Transferencia"
@@ -884,20 +1077,20 @@ def signed_amount_from_description(amount_text: str, description: str) -> float:
     desc = description.upper()
     negative_tokens = (
         "DEBITO",
-        "DÉBITO",
+        "DÃ‰BITO",
         "RETIRO",
         "COMPRA",
         "CONSUMO",
         "PAGO",
         "CARGO",
         "COMISION",
-        "COMISIÓN",
+        "COMISIÃ“N",
     )
     positive_tokens = (
         "CREDITO",
-        "CRÉDITO",
+        "CRÃ‰DITO",
         "DEPOSITO",
-        "DEPÓSITO",
+        "DEPÃ“SITO",
         "ABONO",
         "PLANILLA",
         "TRANSFERENCIA RECIBIDA",
@@ -1060,7 +1253,12 @@ def parse_pdf_upload(
 
 
 def parse_csv_upload(data: bytes, source_name: str, bank: str, product: str, account: str) -> list[dict]:
-    text = data.decode("utf-8-sig", errors="replace")
+    try:
+        text = data.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        # Excel en Guatemala suele exportar CSV en Windows-1252 en vez de UTF-8;
+        # cp1252 decodifica cualquier byte sin fallar, asi que es un fallback seguro.
+        text = data.decode("cp1252", errors="replace")
     sample = text[:2048]
     try:
         dialect = csv.Sniffer().sniff(sample)
@@ -1071,13 +1269,13 @@ def parse_csv_upload(data: bytes, source_name: str, bank: str, product: str, acc
     for item in reader:
         lowered = {str(k).strip().lower(): v for k, v in item.items() if k is not None}
         fecha = first(lowered, "fecha", "date", "fecha transaccion", "fecha operacion")
-        desc = first(lowered, "descripcion", "descripción", "descripcion_banco", "detalle", "concepto", "comercio")
+        desc = first(lowered, "descripcion", "descripciÃ³n", "descripcion_banco", "detalle", "concepto", "comercio")
         doc = first(lowered, "documento", "doc", "referencia", "no documento")
         saldo = money_to_number(first(lowered, "saldo", "balance"))
         monto = money_to_number(first(lowered, "monto", "amount", "importe", "valor"))
         if monto == 0:
-            credito = money_to_number(first(lowered, "credito", "crédito", "creditos", "créditos", "abono"))
-            debito = money_to_number(first(lowered, "debito", "débito", "debitos", "débitos", "cargo"))
+            credito = money_to_number(first(lowered, "credito", "crÃ©dito", "creditos", "crÃ©ditos", "abono"))
+            debito = money_to_number(first(lowered, "debito", "dÃ©bito", "debitos", "dÃ©bitos", "cargo"))
             monto = credito if credito else -abs(debito)
         if not fecha or not desc or monto == 0:
             continue
@@ -1092,7 +1290,7 @@ def parse_csv_upload(data: bytes, source_name: str, bank: str, product: str, acc
                 "date": normalize_date(fecha),
                 "description": desc,
                 "suggested_type": tipo,
-                "suggested_category": first(lowered, "categoria", "categoría") or suggest_category(desc, monto),
+                "suggested_category": first(lowered, "categoria", "categorÃ­a") or suggest_category(desc, monto),
                 "amount": abs(monto),
                 "balance": saldo,
                 "action": "Pendiente",
@@ -1115,26 +1313,39 @@ def save_imports(rows: list[dict]) -> int:
     inserted = 0
     with db_connection() as conn:
         for row in rows:
-            exists = conn.execute(
-                """
-                SELECT 1 FROM imports
-                WHERE source_name=? AND date=? AND account=? AND description=? AND amount=?
-                LIMIT 1
-                """,
-                (row["source_name"], row["date"], row["account"], row["description"], row["amount"]),
-            ).fetchone()
+            if row.get("document"):
+                # Con numero de documento disponible, dos filas del mismo dia/monto/descripcion
+                # solo son duplicado si ademas comparten el mismo documento (ej. dos "DEBITO ACH"
+                # identicos el mismo dia son movimientos distintos si su documento difiere).
+                exists = conn.execute(
+                    """
+                    SELECT 1 FROM imports
+                    WHERE source_name=? AND date=? AND account=? AND description=? AND amount=? AND document=?
+                    LIMIT 1
+                    """,
+                    (row["source_name"], row["date"], row["account"], row["description"], row["amount"], row["document"]),
+                ).fetchone()
+            else:
+                exists = conn.execute(
+                    """
+                    SELECT 1 FROM imports
+                    WHERE source_name=? AND date=? AND account=? AND description=? AND amount=?
+                    LIMIT 1
+                    """,
+                    (row["source_name"], row["date"], row["account"], row["description"], row["amount"]),
+                ).fetchone()
             if exists:
                 continue
             conn.execute(
                 """
                 INSERT INTO imports
                 (source_name, bank, product, account, document, date, description, suggested_type,
-                 suggested_category, amount, balance, action, notes, created_at)
+                 suggested_category, amount, balance, action, notes, debt_id, created_at)
                 VALUES
                 (:source_name, :bank, :product, :account, :document, :date, :description,
-                 :suggested_type, :suggested_category, :amount, :balance, :action, :notes, :created_at)
+                 :suggested_type, :suggested_category, :amount, :balance, :action, :notes, :debt_id, :created_at)
                 """,
-                {**row, "created_at": now},
+                {**row, "created_at": now, "debt_id": row.get("debt_id")},
             )
             inserted += 1
     return inserted
@@ -1201,6 +1412,18 @@ def serialize_wedding_expense(row: sqlite3.Row) -> dict:
     }
 
 
+def serialize_wedding_payment(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["id"],
+        "date": row["date"],
+        "amount": float(row["amount"]),
+        "note": row["note"],
+        "attachment_name": row["attachment_name"],
+        "attachment_mime": row["attachment_mime"],
+        "has_attachment": bool(row["attachment_path"]),
+    }
+
+
 def serialize_house_payment(row: sqlite3.Row) -> dict:
     return {
         "id": row["id"],
@@ -1257,10 +1480,20 @@ def build_wedding_state() -> dict:
             FROM wedding_expenses e
             LEFT JOIN wedding_payments p ON p.expense_id = e.id
             GROUP BY e.id
-            ORDER BY e.date DESC, e.id DESC
+            ORDER BY e.created_at DESC, e.id DESC
             """
         ).fetchall()
+        payment_rows = conn.execute(
+            "SELECT * FROM wedding_payments ORDER BY date DESC, id DESC"
+        ).fetchall()
+    payments_by_expense: dict[int, list[dict]] = {}
+    for payment_row in payment_rows:
+        payments_by_expense.setdefault(payment_row["expense_id"], []).append(
+            serialize_wedding_payment(payment_row)
+        )
     expenses = [serialize_wedding_expense(row) for row in rows]
+    for expense, row in zip(expenses, rows):
+        expense["payments"] = payments_by_expense.get(row["id"], [])
     budget = float(budget_row["value"]) if budget_row else 0
     spent = sum(expense["amount"] for expense in expenses)
     paid = sum(expense["paid_amount"] for expense in expenses)
@@ -1274,6 +1507,141 @@ def build_wedding_state() -> dict:
         "progress": spent / budget if budget else 0,
         "categories": WEDDING_CATEGORIES,
         "expenses": expenses,
+    }
+
+
+def serialize_debt(row: sqlite3.Row) -> dict:
+    is_card = row["type"] == "Tarjeta de credito"
+    is_other = row["type"] == "Otro pago"
+    balance = float(row["current_balance"] or 0)
+    limit = float(row["credit_limit"]) if row["credit_limit"] is not None else None
+    limit_usd = float(row["credit_limit_usd"]) if row["credit_limit_usd"] is not None else None
+    balance_usd = float(row["balance_usd"]) if row["balance_usd"] is not None else None
+    original = float(row["original_amount"]) if row["original_amount"] is not None else None
+    available = max(limit - balance, 0) if is_card and limit else None
+    utilization = min(balance / limit, 1) if is_card and limit else None
+    available_usd = max(limit_usd - (balance_usd or 0), 0) if is_card and limit_usd else None
+    utilization_usd = min((balance_usd or 0) / limit_usd, 1) if is_card and limit_usd else None
+    paid = max(original - balance, 0) if not is_card and original else None
+    progress = min(paid / original, 1) if not is_card and original else None
+    return {
+        "id": row["id"],
+        "type": row["type"],
+        "name": row["name"],
+        "bank": row["bank"],
+        "current_balance": balance,
+        "credit_limit": limit,
+        "credit_limit_usd": limit_usd,
+        "original_amount": original,
+        "interest_rate": float(row["interest_rate"]) if row["interest_rate"] is not None else None,
+        "statement_day": row["statement_day"],
+        "due_day": row["due_day"],
+        "min_payment": float(row["min_payment"]) if row["min_payment"] is not None else None,
+        "monthly_payment": float(row["monthly_payment"]) if row["monthly_payment"] is not None else None,
+        "balance_usd": balance_usd,
+        "start_date": row["start_date"],
+        "end_date": row["end_date"],
+        "available": available,
+        "utilization": utilization,
+        "available_usd": available_usd,
+        "utilization_usd": utilization_usd,
+        "paid": paid,
+        "progress": progress,
+        "is_other": is_other,
+        "created_at": row["created_at"],
+    }
+
+
+def serialize_debt_payment(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["id"],
+        "date": row["date"],
+        "amount": float(row["amount"]),
+        "note": row["note"],
+        "origin_account": row["origin_account"],
+        "attachment_name": row["attachment_name"],
+        "attachment_mime": row["attachment_mime"],
+        "has_attachment": bool(row["attachment_path"]),
+    }
+
+
+def build_debts_state() -> dict:
+    with db_connection() as conn:
+        rows = conn.execute("SELECT * FROM debts ORDER BY created_at DESC, id DESC").fetchall()
+        payment_rows = conn.execute(
+            "SELECT * FROM debt_payments ORDER BY date DESC, id DESC"
+        ).fetchall()
+    payments_by_debt: dict[int, list[dict]] = {}
+    for payment_row in payment_rows:
+        payments_by_debt.setdefault(payment_row["debt_id"], []).append(
+            serialize_debt_payment(payment_row)
+        )
+    debts = [serialize_debt(row) for row in rows]
+    for debt in debts:
+        debt["payments"] = payments_by_debt.get(debt["id"], [])
+    total_debt = sum(debt["current_balance"] for debt in debts)
+    total_available = sum(debt["available"] or 0 for debt in debts if debt["type"] == "Tarjeta de credito")
+    min_payment_total = sum(debt["min_payment"] or 0 for debt in debts if debt["type"] == "Tarjeta de credito")
+    return {
+        "types": DEBT_TYPES,
+        "banks": DEBT_BANKS,
+        "accounts": ACCOUNTS,
+        "debts": debts,
+        "totalDebt": total_debt,
+        "totalAvailable": total_available,
+        "minPaymentTotal": min_payment_total,
+        "count": len(debts),
+    }
+
+
+def serialize_ahorro(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["id"],
+        "type": row["type"],
+        "name": row["name"],
+        "bank": row["bank"],
+        "account": row["account"],
+        "initial_balance": float(row["initial_balance"]),
+        "monthly_target": float(row["monthly_target"]),
+        "current_balance": float(row["initial_balance"]) + float(row["net_movement"]),
+        "created_at": row["created_at"],
+    }
+
+
+def build_ahorros_state() -> dict:
+    with db_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT a.*, COALESCE(SUM(
+              CASE
+                WHEN a.type='Fondo' AND t.type='Transferencia' THEN t.amount
+                WHEN a.type='Ahorro' AND t.type='Ahorro' THEN t.amount
+                WHEN a.type='Ahorro' AND t.type='Gasto' THEN -t.amount
+                ELSE 0
+              END
+            ), 0) AS net_movement
+            FROM ahorros a
+            LEFT JOIN transactions t ON t.ahorro_id = a.id
+            GROUP BY a.id
+            ORDER BY a.created_at DESC, a.id DESC
+            """
+        ).fetchall()
+        tx_rows = conn.execute(
+            "SELECT * FROM transactions WHERE ahorro_id IS NOT NULL ORDER BY date DESC, id DESC"
+        ).fetchall()
+    movements_by_ahorro: dict[int, list[dict]] = {}
+    for tx in tx_rows:
+        movements_by_ahorro.setdefault(tx["ahorro_id"], []).append(rowdict(tx))
+    ahorros = [serialize_ahorro(row) for row in rows]
+    for ahorro in ahorros:
+        ahorro["movements"] = movements_by_ahorro.get(ahorro["id"], [])
+    return {
+        "types": AHORRO_TYPES,
+        "banks": DEBT_BANKS,
+        "accounts": ACCOUNTS,
+        "ahorros": ahorros,
+        "totalBalance": sum(ahorro["current_balance"] for ahorro in ahorros),
+        "count": len(ahorros),
     }
 
 
@@ -1324,7 +1692,7 @@ def build_recurring_state(month: str) -> dict:
         "month": month,
         "items": items,
         "categories": RECURRING_CATEGORIES,
-        "accounts": RECURRING_ACCOUNTS,
+        "accounts": RECURRING_PAYMENT_METHODS,
         "summary": {
             "monthlyEquivalent": round(monthly_equivalent, 2),
             "annualProvision": round(annual_provision, 2),
@@ -1340,85 +1708,79 @@ def safe_filename(value: str) -> str:
     return re.sub(r"[^A-Za-z0-9._-]+", "_", name)[:120]
 
 
-def save_wedding_attachment(expense_id: int, file: dict) -> tuple[str, Path, str]:
+ATTACHMENT_EXTENSIONS = {
+    ".pdf", ".png", ".jpg", ".jpeg", ".jfif", ".webp",
+    ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif",
+}
+MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024
+# Topes del cuerpo de la solicitud para no cargar bloques enormes en memoria.
+MAX_JSON_BYTES = 1 * 1024 * 1024
+MAX_UPLOAD_BYTES = MAX_ATTACHMENT_BYTES + 5 * 1024 * 1024  # margen para overhead multipart
+
+
+def save_attachment(base_dir: Path, prefix: str, file: dict) -> tuple[str, Path, str]:
     original_name = safe_filename(file.get("filename", "archivo"))
     suffix = Path(original_name).suffix.lower()
-    allowed = {".pdf", ".png", ".jpg", ".jpeg", ".jfif", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif"}
-    if suffix not in allowed:
+    if suffix not in ATTACHMENT_EXTENSIONS:
         raise ValueError("Solo se permiten archivos PDF o imagenes.")
+    data = file.get("data", b"")
+    if len(data) > MAX_ATTACHMENT_BYTES:
+        raise ValueError("El archivo supera el limite de 15 MB.")
     mime = mimetypes.guess_type(original_name)[0] or "application/octet-stream"
     if suffix == ".pdf":
         mime = "application/pdf"
     elif not mime.startswith("image/"):
         mime = "image/jpeg"
-    file_path = WEDDING_FILES / f"{expense_id}_{original_name}"
-    file_path.write_bytes(file.get("data", b""))
+    file_path = base_dir / f"{prefix}{original_name}"
+    file_path.write_bytes(data)
     return original_name, file_path, mime
+
+
+def delete_attachment(base_dir: Path, relative_path: str | None) -> None:
+    if not relative_path:
+        return
+    file_path = (DATA / relative_path).resolve()
+    try:
+        file_path.relative_to(base_dir.resolve())
+    except ValueError:
+        return
+    file_path.unlink(missing_ok=True)
+
+
+def save_wedding_attachment(expense_id: int, file: dict) -> tuple[str, Path, str]:
+    return save_attachment(WEDDING_FILES, f"{expense_id}_", file)
+
+
+def save_wedding_payment_attachment(payment_id: int, file: dict) -> tuple[str, Path, str]:
+    return save_attachment(WEDDING_FILES, f"payment_{payment_id}_", file)
 
 
 def save_house_attachment(payment_id: int, file: dict) -> tuple[str, Path, str]:
-    original_name = safe_filename(file.get("filename", "archivo"))
-    suffix = Path(original_name).suffix.lower()
-    allowed = {".pdf", ".png", ".jpg", ".jpeg", ".jfif", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif"}
-    if suffix not in allowed:
-        raise ValueError("Solo se permiten archivos PDF o imagenes.")
-    mime = mimetypes.guess_type(original_name)[0] or "application/octet-stream"
-    if suffix == ".pdf":
-        mime = "application/pdf"
-    elif not mime.startswith("image/"):
-        mime = "image/jpeg"
-    file_path = HOUSE_FILES / f"{payment_id}_{original_name}"
-    file_path.write_bytes(file.get("data", b""))
-    return original_name, file_path, mime
+    return save_attachment(HOUSE_FILES, f"{payment_id}_", file)
 
 
 def save_transaction_attachment(transaction_id: int, file: dict) -> tuple[str, Path, str]:
-    original_name = safe_filename(file.get("filename", "archivo"))
-    suffix = Path(original_name).suffix.lower()
-    allowed = {".pdf", ".png", ".jpg", ".jpeg", ".jfif", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif"}
-    if suffix not in allowed:
-        raise ValueError("Solo se permiten archivos PDF o imagenes.")
-    mime = mimetypes.guess_type(original_name)[0] or "application/octet-stream"
-    if suffix == ".pdf":
-        mime = "application/pdf"
-    elif not mime.startswith("image/"):
-        mime = "image/jpeg"
-    file_path = TRANSACTION_FILES / f"{transaction_id}_{original_name}"
-    file_path.write_bytes(file.get("data", b""))
-    return original_name, file_path, mime
+    return save_attachment(TRANSACTION_FILES, f"{transaction_id}_", file)
+
+
+def save_debt_payment_attachment(payment_id: int, file: dict) -> tuple[str, Path, str]:
+    return save_attachment(DEBT_FILES, f"payment_{payment_id}_", file)
 
 
 def delete_wedding_attachment(relative_path: str | None) -> None:
-    if not relative_path:
-        return
-    file_path = (DATA / relative_path).resolve()
-    try:
-        file_path.relative_to(WEDDING_FILES.resolve())
-    except ValueError:
-        return
-    file_path.unlink(missing_ok=True)
+    delete_attachment(WEDDING_FILES, relative_path)
 
 
 def delete_house_attachment(relative_path: str | None) -> None:
-    if not relative_path:
-        return
-    file_path = (DATA / relative_path).resolve()
-    try:
-        file_path.relative_to(HOUSE_FILES.resolve())
-    except ValueError:
-        return
-    file_path.unlink(missing_ok=True)
+    delete_attachment(HOUSE_FILES, relative_path)
 
 
 def delete_transaction_attachment(relative_path: str | None) -> None:
-    if not relative_path:
-        return
-    file_path = (DATA / relative_path).resolve()
-    try:
-        file_path.relative_to(TRANSACTION_FILES.resolve())
-    except ValueError:
-        return
-    file_path.unlink(missing_ok=True)
+    delete_attachment(TRANSACTION_FILES, relative_path)
+
+
+def delete_debt_attachment(relative_path: str | None) -> None:
+    delete_attachment(DEBT_FILES, relative_path)
 
 
 class App(BaseHTTPRequestHandler):
@@ -1469,7 +1831,7 @@ class App(BaseHTTPRequestHandler):
         username = str(body.get("username", "")).strip()
         password = str(body.get("password", ""))
         if username != AUTH_USER or not password_matches(password):
-            self.send_json({"ok": False, "message": "Usuario o contraseña incorrectos"}, status=401)
+            self.send_json({"ok": False, "message": "Usuario o contraseÃ±a incorrectos"}, status=401)
             return
         payload = json.dumps({"ok": True, "user": username}, ensure_ascii=False).encode("utf-8")
         self.send_response(200)
@@ -1497,9 +1859,23 @@ class App(BaseHTTPRequestHandler):
             return
         self.serve_static(parsed.path)
 
+    def reject_oversized_body(self) -> bool:
+        try:
+            length = int(self.headers.get("Content-Length", "0") or 0)
+        except ValueError:
+            length = 0
+        content_type = self.headers.get("Content-Type", "")
+        limit = MAX_UPLOAD_BYTES if content_type.startswith("multipart/form-data") else MAX_JSON_BYTES
+        if length > limit:
+            self.send_error(413, "El cuerpo de la solicitud es demasiado grande")
+            return True
+        return False
+
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         if not self.require_auth(parsed.path):
+            return
+        if self.reject_oversized_body():
             return
         if parsed.path == "/api/login":
             self.handle_login()
@@ -1507,11 +1883,13 @@ class App(BaseHTTPRequestHandler):
             self.handle_logout()
         elif parsed.path == "/api/import":
             self.handle_import()
+        elif parsed.path == "/api/monthly-control":
+            self.update_monthly_control(self.read_json())
         elif parsed.path == "/api/imports/update":
             body = self.read_json()
             self.update_import(body)
         elif parsed.path == "/api/imports/commit":
-            self.commit_imports()
+            self.commit_imports(self.read_json())
         elif parsed.path == "/api/transactions":
             body, file = self.read_transaction_payload()
             self.create_transaction(body, file)
@@ -1523,18 +1901,38 @@ class App(BaseHTTPRequestHandler):
             _, file = self.read_transaction_payload()
             self.update_transaction_attachment(transaction_id, file)
         elif parsed.path == "/api/wedding/expenses":
-            body, file = self.read_wedding_expense_payload()
-            self.create_wedding_expense(body, file)
+            body, file, initial_payment_file = self.read_wedding_expense_create_payload()
+            self.create_wedding_expense(body, file, initial_payment_file)
         elif parsed.path == "/api/wedding/sample-data":
             self.load_wedding_sample_data()
         elif parsed.path.startswith("/api/wedding/expenses/") and parsed.path.endswith("/payments"):
             expense_id = int(parsed.path.split("/")[4])
-            body = self.read_json()
-            self.create_wedding_payment(expense_id, body)
+            body, file = self.read_wedding_expense_payload()
+            self.create_wedding_payment(expense_id, body, file)
         elif parsed.path.startswith("/api/wedding/expenses/") and parsed.path.endswith("/attachment"):
             expense_id = int(parsed.path.split("/")[4])
             _, file = self.read_wedding_expense_payload()
             self.update_wedding_attachment(expense_id, file)
+        elif parsed.path.startswith("/api/wedding/payments/") and parsed.path.endswith("/attachment"):
+            payment_id = int(parsed.path.split("/")[4])
+            _, file = self.read_wedding_expense_payload()
+            self.update_wedding_payment_attachment(payment_id, file)
+        elif parsed.path == "/api/debts":
+            self.create_debt(self.read_json())
+        elif parsed.path.startswith("/api/debts/payments/") and parsed.path.endswith("/attachment"):
+            payment_id = int(parsed.path.split("/")[4])
+            _, file = self.read_wedding_expense_payload()
+            self.update_debt_payment_attachment(payment_id, file)
+        elif parsed.path.startswith("/api/debts/") and parsed.path.endswith("/payments"):
+            debt_id = int(parsed.path.split("/")[3])
+            body, file = self.read_wedding_expense_payload()
+            self.create_debt_payment(debt_id, body, file)
+        elif parsed.path == "/api/ahorros":
+            self.create_ahorro(self.read_json())
+        elif parsed.path.startswith("/api/ahorros/") and parsed.path.endswith("/movements"):
+            ahorro_id = int(parsed.path.split("/")[3])
+            body, file = self.read_wedding_expense_payload()
+            self.create_ahorro_movement(ahorro_id, body, file)
         elif parsed.path == "/api/house/payments":
             body, file = self.read_wedding_expense_payload()
             self.create_house_payment(body, file)
@@ -1554,13 +1952,26 @@ class App(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if not self.require_auth(parsed.path):
             return
-        if parsed.path.startswith("/api/transactions/"):
+        if self.reject_oversized_body():
+            return
+        if parsed.path == "/api/monthly-control":
+            self.update_monthly_control(self.read_json())
+        elif parsed.path.startswith("/api/transactions/"):
             transaction_id = int(parsed.path.rsplit("/", 1)[-1])
             body = self.read_json()
             self.update_transaction(transaction_id, body)
         elif parsed.path == "/api/wedding/budget":
             body = self.read_json()
             self.update_wedding_budget(body)
+        elif parsed.path.startswith("/api/wedding/expenses/"):
+            expense_id = int(parsed.path.rsplit("/", 1)[-1])
+            self.update_wedding_expense(expense_id, self.read_json())
+        elif parsed.path.startswith("/api/debts/"):
+            debt_id = int(parsed.path.rsplit("/", 1)[-1])
+            self.update_debt(debt_id, self.read_json())
+        elif parsed.path.startswith("/api/ahorros/"):
+            ahorro_id = int(parsed.path.rsplit("/", 1)[-1])
+            self.update_ahorro(ahorro_id, self.read_json())
         elif parsed.path.startswith("/api/recurring/expenses/"):
             expense_id = int(parsed.path.rsplit("/", 1)[-1])
             self.update_recurring_expense(expense_id, self.read_json())
@@ -1572,8 +1983,20 @@ class App(BaseHTTPRequestHandler):
         if not self.require_auth(parsed.path):
             return
         if parsed.path == "/api/imports":
+            debt_id = parse_qs(parsed.query).get("debtId", [None])[0]
             with db_connection() as conn:
-                conn.execute("DELETE FROM imports")
+                if debt_id not in (None, ""):
+                    conn.execute(
+                        """
+                        DELETE FROM imports
+                        WHERE debt_id = ? AND action NOT IN ('Registrado', 'Ignorar / transferencia')
+                        """,
+                        (int(debt_id),),
+                    )
+                else:
+                    conn.execute(
+                        "DELETE FROM imports WHERE action NOT IN ('Registrado', 'Ignorar / transferencia')"
+                    )
             self.send_json({"ok": True})
         elif parsed.path.startswith("/api/transactions/"):
             transaction_id = int(parsed.path.rsplit("/", 1)[-1])
@@ -1581,6 +2004,12 @@ class App(BaseHTTPRequestHandler):
         elif parsed.path.startswith("/api/wedding/expenses/"):
             expense_id = int(parsed.path.rsplit("/", 1)[-1])
             self.delete_wedding_expense(expense_id)
+        elif parsed.path.startswith("/api/debts/"):
+            debt_id = int(parsed.path.rsplit("/", 1)[-1])
+            self.delete_debt(debt_id)
+        elif parsed.path.startswith("/api/ahorros/"):
+            ahorro_id = int(parsed.path.rsplit("/", 1)[-1])
+            self.delete_ahorro(ahorro_id)
         elif parsed.path.startswith("/api/house/payments/"):
             payment_id = int(parsed.path.rsplit("/", 1)[-1])
             self.delete_house_payment(payment_id)
@@ -1608,19 +2037,34 @@ class App(BaseHTTPRequestHandler):
                 }
             )
         elif path == "/api/imports":
+            debt_id = query.get("debtId", [None])[0]
             with db_connection() as conn:
-                rows = conn.execute(
-                    """
-                    SELECT * FROM imports
-                    WHERE action NOT IN ('Registrado', 'Ignorar / transferencia')
-                    ORDER BY date, id
-                    """
-                ).fetchall()
+                if debt_id not in (None, ""):
+                    rows = conn.execute(
+                        """
+                        SELECT * FROM imports
+                        WHERE action NOT IN ('Registrado', 'Ignorar / transferencia')
+                          AND debt_id = ?
+                        ORDER BY date, id
+                        """,
+                        (int(debt_id),),
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        """
+                        SELECT * FROM imports
+                        WHERE action NOT IN ('Registrado', 'Ignorar / transferencia')
+                        ORDER BY date, id
+                        """
+                    ).fetchall()
             self.send_json([rowdict(row) for row in rows])
         elif path == "/api/transactions":
             with db_connection() as conn:
                 rows = conn.execute("SELECT * FROM transactions ORDER BY date DESC, id DESC").fetchall()
             self.send_json([rowdict(row) for row in rows])
+        elif path == "/api/transactions/export":
+            month = query.get("month", [datetime.now().strftime("%Y-%m")])[0]
+            self.serve_transactions_export(month)
         elif path.startswith("/api/transactions/"):
             if path.endswith("/attachment"):
                 transaction_id = int(path.split("/")[3])
@@ -1633,19 +2077,47 @@ class App(BaseHTTPRequestHandler):
                     self.send_error(404, "Movimiento no encontrado")
                 else:
                     self.send_json(rowdict(row))
+        elif path == "/api/monthly-control":
+            month = query.get("month", [datetime.now().strftime("%Y-%m")])[0]
+            self.send_json(build_monthly_control(month))
         elif path == "/api/dashboard":
             month = query.get("month", [datetime.now().strftime("%Y-%m")])[0]
             self.send_json(build_dashboard(month))
+        elif path == "/api/sales/export":
+            month = query.get("month", [datetime.now().strftime("%Y-%m")])[0]
+            self.serve_sales_export(month)
         elif path == "/api/exchange-rate":
             self.send_json(fetch_usd_gtq_rate())
         elif path == "/api/wedding/state":
             self.send_json(build_wedding_state())
+        elif path == "/api/wedding/export":
+            self.serve_wedding_export()
         elif path.startswith("/api/wedding/expenses/") and path.endswith("/attachment"):
             expense_id = int(path.split("/")[4])
             self.serve_wedding_attachment(expense_id)
+        elif path.startswith("/api/wedding/payments/") and path.endswith("/attachment"):
+            payment_id = int(path.split("/")[4])
+            self.serve_wedding_payment_attachment(payment_id)
+        elif path == "/api/debts/state":
+            self.send_json(build_debts_state())
+        elif path == "/api/debts/export":
+            self.serve_debts_export()
+        elif path.startswith("/api/debts/payments/") and path.endswith("/attachment"):
+            payment_id = int(path.split("/")[4])
+            self.serve_debt_payment_attachment(payment_id)
+        elif path.startswith("/api/debts/") and path.endswith("/transactions"):
+            debt_id = int(path.split("/")[3])
+            self.serve_debt_transactions(debt_id)
+        elif path == "/api/ahorros/state":
+            self.send_json(build_ahorros_state())
+        elif path == "/api/ahorros/export":
+            self.serve_ahorros_export()
         elif path == "/api/house/state":
             month = query.get("month", [datetime.now().strftime("%Y-%m")])[0]
             self.send_json(build_house_state(month))
+        elif path == "/api/house/export":
+            month = query.get("month", [datetime.now().strftime("%Y-%m")])[0]
+            self.serve_house_export(month)
         elif path.startswith("/api/house/payments/") and path.endswith("/attachment"):
             payment_id = int(path.split("/")[4])
             self.serve_house_attachment(payment_id)
@@ -1667,6 +2139,11 @@ class App(BaseHTTPRequestHandler):
         bank = fields.get("bank", "GYT")
         account = fields.get("account", "GYT - Cuenta ahorro sueldo")
         product = fields.get("product") or infer_product(account)
+        debt_id_raw = fields.get("debtId") or fields.get("debt_id")
+        try:
+            debt_id = int(debt_id_raw) if debt_id_raw not in (None, "") else None
+        except (TypeError, ValueError):
+            debt_id = None
         try:
             exchange_rate = float(fields.get("exchangeRate") or DEFAULT_USD_GTQ_RATE)
         except (TypeError, ValueError):
@@ -1696,6 +2173,8 @@ class App(BaseHTTPRequestHandler):
                 "No se detectaron movimientos en el archivo. Proba exportarlo como CSV o compartime el formato del PDF para ajustar el lector.",
             )
             return
+        for row in rows:
+            row["debt_id"] = debt_id
         count = save_imports(rows)
         self.send_json({"ok": True, "count": count})
 
@@ -1709,6 +2188,19 @@ class App(BaseHTTPRequestHandler):
             return fields, file
         return self.read_json(), None
 
+    def read_wedding_expense_create_payload(self) -> tuple[dict, dict | None, dict | None]:
+        content_type = self.headers.get("Content-Type", "")
+        if content_type.startswith("multipart/form-data"):
+            fields, files = parse_multipart(self)
+            file = files.get("attachment")
+            if file and not file.get("filename"):
+                file = None
+            initial_payment_file = files.get("initialPaymentAttachment")
+            if initial_payment_file and not initial_payment_file.get("filename"):
+                initial_payment_file = None
+            return fields, file, initial_payment_file
+        return self.read_json(), None, None
+
     def read_transaction_payload(self) -> tuple[dict, dict | None]:
         content_type = self.headers.get("Content-Type", "")
         if content_type.startswith("multipart/form-data"):
@@ -1719,6 +2211,31 @@ class App(BaseHTTPRequestHandler):
             return fields, file
         return self.read_json(), None
 
+    def update_monthly_control(self, body: dict) -> None:
+        month = str(body.get("month") or datetime.now().strftime("%Y-%m"))
+        if not re.match(r"^\d{4}-\d{2}$", month):
+            self.send_error(400, "Mes invalido")
+            return
+        try:
+            amount = float(body.get("amount") or 0)
+        except (TypeError, ValueError):
+            self.send_error(400, "Monto invalido")
+            return
+        if amount < 0:
+            self.send_error(400, "El monto no puede ser negativo")
+            return
+        updated_at = datetime.now().isoformat(timespec="seconds")
+        with db_connection() as conn:
+            updated = conn.execute(
+                "UPDATE monthly_budgets SET amount = ?, updated_at = ? WHERE month = ?",
+                (amount, updated_at, month),
+            ).rowcount
+            if not updated:
+                conn.execute(
+                    "INSERT INTO monthly_budgets (month, amount, updated_at) VALUES (?, ?, ?)",
+                    (month, amount, updated_at),
+                )
+        self.send_json(build_monthly_control(month))
     def update_import(self, body: dict) -> None:
         allowed = {"suggested_type", "suggested_category", "account", "action", "notes"}
         updates = {k: v for k, v in body.items() if k in allowed}
@@ -1732,14 +2249,27 @@ class App(BaseHTTPRequestHandler):
     def delete_transaction(self, transaction_id: int) -> None:
         with db_connection() as conn:
             row = conn.execute(
-                "SELECT attachment_path FROM transactions WHERE id=?",
+                "SELECT attachment_path, debt_id, type, amount FROM transactions WHERE id=?",
+                (transaction_id,),
+            ).fetchone()
+            payment_row = conn.execute(
+                "SELECT id, debt_id, amount, attachment_path FROM debt_payments WHERE transaction_id=?",
                 (transaction_id,),
             ).fetchone()
             cursor = conn.execute("DELETE FROM transactions WHERE id=?", (transaction_id,))
+            deltas: dict[int, float] = {}
+            if row and row["debt_id"] is not None:
+                deltas[row["debt_id"]] = deltas.get(row["debt_id"], 0) - self._debt_delta(row["type"], row["amount"])
+            if payment_row:
+                deltas[payment_row["debt_id"]] = deltas.get(payment_row["debt_id"], 0) + payment_row["amount"]
+                conn.execute("DELETE FROM debt_payments WHERE id=?", (payment_row["id"],))
+            self._adjust_debt_balances(conn, deltas)
         if cursor.rowcount == 0:
             self.send_error(404, "Movimiento no encontrado")
         else:
             delete_transaction_attachment(row["attachment_path"] if row else None)
+            if payment_row:
+                delete_debt_attachment(payment_row["attachment_path"])
             self.send_json({"ok": True})
 
     def delete_transactions(self, transaction_ids: list) -> None:
@@ -1750,44 +2280,104 @@ class App(BaseHTTPRequestHandler):
         placeholders = ",".join("?" for _ in ids)
         with db_connection() as conn:
             rows = conn.execute(
-                f"SELECT attachment_path FROM transactions WHERE id IN ({placeholders})",
+                f"SELECT attachment_path, debt_id, type, amount FROM transactions WHERE id IN ({placeholders})",
+                ids,
+            ).fetchall()
+            payment_rows = conn.execute(
+                f"SELECT id, debt_id, amount, attachment_path FROM debt_payments WHERE transaction_id IN ({placeholders})",
                 ids,
             ).fetchall()
             cursor = conn.execute(f"DELETE FROM transactions WHERE id IN ({placeholders})", ids)
+            debt_deltas: dict[int, float] = {}
+            for row in rows:
+                if row["debt_id"] is None:
+                    continue
+                debt_deltas[row["debt_id"]] = debt_deltas.get(row["debt_id"], 0) - self._debt_delta(
+                    row["type"], row["amount"]
+                )
+            for payment_row in payment_rows:
+                debt_deltas[payment_row["debt_id"]] = debt_deltas.get(payment_row["debt_id"], 0) + payment_row["amount"]
+            if payment_rows:
+                payment_placeholders = ",".join("?" for _ in payment_rows)
+                conn.execute(
+                    f"DELETE FROM debt_payments WHERE id IN ({payment_placeholders})",
+                    [p["id"] for p in payment_rows],
+                )
+            self._adjust_debt_balances(conn, debt_deltas)
         for row in rows:
             delete_transaction_attachment(row["attachment_path"])
+        for payment_row in payment_rows:
+            delete_debt_attachment(payment_row["attachment_path"])
         self.send_json({"ok": True, "count": cursor.rowcount})
+
+    @staticmethod
+    def _debt_delta(tx_type: str, amount: float) -> float:
+        """Effect on a debt's current_balance from adding this transaction."""
+        amount = float(amount or 0)
+        if tx_type == "Gasto":
+            return amount
+        if tx_type in ("Transferencia", "Ingreso"):
+            return -amount
+        return 0
+
+    @staticmethod
+    def _adjust_debt_balances(conn: sqlite3.Connection, deltas: dict[int, float]) -> None:
+        for debt_id, delta in deltas.items():
+            if not delta:
+                continue
+            debt = conn.execute("SELECT current_balance FROM debts WHERE id=?", (debt_id,)).fetchone()
+            if debt:
+                new_balance = max(float(debt["current_balance"] or 0) + delta, 0)
+                conn.execute("UPDATE debts SET current_balance=? WHERE id=?", (new_balance, debt_id))
 
     def update_transaction(self, transaction_id: int, body: dict) -> None:
         tx_type = body.get("type", "Gasto")
-        account = body.get("account", "Otro")
-        category = body.get("category") or default_category_for_type(tx_type, account)
-        description = (body.get("description", "").strip() or "Movimiento manual")[:75]
         amount = float(body.get("amount") or 0)
-        date = normalize_date(body.get("date", datetime.now().strftime("%Y-%m-%d")))
         if amount <= 0:
             self.send_error(400, "El monto debe ser mayor a cero")
             return
-        usd_amount = body.get("usdAmount")
-        exchange_rate = body.get("exchangeRate")
-        if tx_type == "Venta USD":
-            details = []
-            if usd_amount:
-                details.append(f"USD {usd_amount}")
-            if exchange_rate:
-                details.append(f"TC {exchange_rate}")
-            if details and "(" not in description:
-                description = f"{description} ({', '.join(details)})"
-        description = description[:75]
         with db_connection() as conn:
+            old_row = conn.execute(
+                "SELECT debt_id, ahorro_id, type, amount, usd_amount FROM transactions WHERE id=?",
+                (transaction_id,),
+            ).fetchone()
+            if tx_type == "Ahorro" and not (old_row and old_row["ahorro_id"] is not None):
+                # "Ahorro" solo es valido si la transaccion ya esta vinculada a un ahorro
+                # (creada desde ese modulo); de lo contrario se reclasifica para no dejar
+                # un movimiento "ahorrado" que no aparece en ninguna cuenta de Ahorros.
+                tx_type = "Transferencia"
+            account = body.get("account", "Otro")
+            category = body.get("category") or default_category_for_type(tx_type, account)
+            description = (body.get("description", "").strip() or "Movimiento manual")[:75]
+            date = normalize_date(body.get("date", datetime.now().strftime("%Y-%m-%d")))
+            usd_amount = body.get("usdAmount")
+            exchange_rate = body.get("exchangeRate")
+            usd_amount_value = float(usd_amount) if usd_amount else None
+            if tx_type == "Venta USD":
+                details = []
+                if usd_amount:
+                    details.append(f"USD {usd_amount}")
+                if exchange_rate:
+                    details.append(f"TC {exchange_rate}")
+                if details and "(" not in description:
+                    description = f"{description} ({', '.join(details)})"
+                if not usd_amount and old_row:
+                    usd_amount_value = old_row["usd_amount"]
+            else:
+                usd_amount_value = None
+            description = description[:75]
             cursor = conn.execute(
                 """
                 UPDATE transactions
-                SET date=?, type=?, category=?, description=?, account=?, amount=?
+                SET date=?, type=?, category=?, description=?, account=?, amount=?, usd_amount=?
                 WHERE id=?
                 """,
-                (date, tx_type, category, description, account, amount, transaction_id),
+                (date, tx_type, category, description, account, amount, usd_amount_value, transaction_id),
             )
+            if cursor.rowcount and old_row and old_row["debt_id"] is not None:
+                old_delta = self._debt_delta(old_row["type"], old_row["amount"])
+                new_delta = self._debt_delta(tx_type, amount)
+                self._adjust_debt_balances(conn, {old_row["debt_id"]: new_delta - old_delta})
         if cursor.rowcount == 0:
             self.send_error(404, "Movimiento no encontrado")
         else:
@@ -1795,6 +2385,10 @@ class App(BaseHTTPRequestHandler):
 
     def create_transaction(self, body: dict, file: dict | None = None) -> None:
         tx_type = body.get("type", "Gasto")
+        if tx_type == "Ahorro":
+            # "Ahorro" solo se crea desde el modulo de Ahorros (vincula ahorro_id);
+            # por este endpoint generico se reclasifica para no dejar un movimiento huerfano.
+            tx_type = "Transferencia"
         account = body.get("account", "Otro")
         category = body.get("category") or default_category_for_type(tx_type, account)
         description = (body.get("description", "").strip() or "Movimiento manual")[:75]
@@ -1805,6 +2399,7 @@ class App(BaseHTTPRequestHandler):
             return
         usd_amount = body.get("usdAmount")
         exchange_rate = body.get("exchangeRate")
+        usd_amount_value = float(usd_amount) if usd_amount and tx_type == "Venta USD" else None
         if tx_type == "Venta USD":
             details = []
             if usd_amount:
@@ -1819,10 +2414,10 @@ class App(BaseHTTPRequestHandler):
             cursor = conn.execute(
                 """
                 INSERT INTO transactions
-                (date, type, category, description, account, amount, source_import_id, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, NULL, ?)
+                (date, type, category, description, account, amount, usd_amount, source_import_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)
                 """,
-                (date, tx_type, category, description, account, amount, now),
+                (date, tx_type, category, description, account, amount, usd_amount_value, now),
             )
             transaction_id = cursor.lastrowid
             if file:
@@ -1841,41 +2436,63 @@ class App(BaseHTTPRequestHandler):
                 )
         self.send_json({"ok": True, "id": transaction_id})
 
-    def commit_imports(self) -> None:
+    def commit_imports(self, body: dict | None = None) -> None:
         now = datetime.now().isoformat(timespec="seconds")
+        debt_id_raw = (body or {}).get("debtId")
+        try:
+            debt_id = int(debt_id_raw) if debt_id_raw not in (None, "") else None
+        except (TypeError, ValueError):
+            debt_id = None
         with db_connection() as conn:
-            rows = conn.execute(
-                """
-                SELECT * FROM imports
-                WHERE action NOT IN ('Registrado', 'Ignorar / transferencia')
-                ORDER BY date, id
-                """
-            ).fetchall()
+            if debt_id is not None:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM imports
+                    WHERE action NOT IN ('Registrado', 'Ignorar / transferencia')
+                      AND debt_id = ?
+                    ORDER BY date, id
+                    """,
+                    (debt_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM imports
+                    WHERE action NOT IN ('Registrado', 'Ignorar / transferencia')
+                    ORDER BY date, id
+                    """
+                ).fetchall()
+            debt_balance_deltas: dict[int, float] = {}
+            existing_counts: dict[tuple, int] = {}
+            seen_counts: dict[tuple, int] = {}
             for row in rows:
                 tx_type = row["suggested_type"]
-                exists = conn.execute(
-                    """
-                    SELECT 1 FROM transactions
-                    WHERE date=? AND type=? AND category=? AND account=? AND description=? AND amount=?
-                    LIMIT 1
-                    """,
-                    (
-                        row["date"],
-                        tx_type,
-                        row["suggested_category"],
-                        row["account"],
-                        row["description"],
-                        row["amount"],
-                    ),
-                ).fetchone()
-                if exists:
+                if tx_type == "Ahorro":
+                    # Los movimientos importados nunca quedan vinculados a un ahorro_id;
+                    # reclasificar para no dejar un "Ahorro" fantasma fuera del modulo de Ahorros.
+                    tx_type = "Transferencia"
+                key = (row["date"], tx_type, row["suggested_category"], row["account"], row["description"], row["amount"])
+                if key not in existing_counts:
+                    # Cuantas transacciones con esta misma forma ya existian ANTES de este commit.
+                    # Solo esas cuentan como duplicado real; dos filas nuevas identicas en el mismo
+                    # lote (ej. dos "DEBITO ACH" del mismo dia y monto) son movimientos distintos.
+                    count_row = conn.execute(
+                        """
+                        SELECT COUNT(*) FROM transactions
+                        WHERE date=? AND type=? AND category=? AND account=? AND description=? AND amount=?
+                        """,
+                        key,
+                    ).fetchone()
+                    existing_counts[key] = count_row[0]
+                seen_counts[key] = seen_counts.get(key, 0) + 1
+                if seen_counts[key] <= existing_counts[key]:
                     conn.execute("UPDATE imports SET action='Registrado' WHERE id=?", (row["id"],))
                     continue
                 conn.execute(
                     """
                     INSERT INTO transactions
-                    (date, type, category, description, account, amount, source_import_id, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    (date, type, category, description, account, amount, source_import_id, debt_id, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         row["date"],
@@ -1885,10 +2502,15 @@ class App(BaseHTTPRequestHandler):
                         row["account"],
                         row["amount"],
                         row["id"],
+                        row["debt_id"],
                         now,
                     ),
                 )
                 conn.execute("UPDATE imports SET action='Registrado' WHERE id=?", (row["id"],))
+                if row["debt_id"] is not None:
+                    delta = self._debt_delta(tx_type, row["amount"])
+                    debt_balance_deltas[row["debt_id"]] = debt_balance_deltas.get(row["debt_id"], 0) + delta
+            self._adjust_debt_balances(conn, debt_balance_deltas)
         month = rows[0]["date"][:7] if rows else None
         self.send_json({"ok": True, "count": len(rows), "month": month})
 
@@ -2017,6 +2639,7 @@ class App(BaseHTTPRequestHandler):
                 try:
                     filename, file_path, mime = save_house_attachment(payment_id, file)
                 except ValueError as exc:
+                    conn.rollback()
                     self.send_error(400, str(exc))
                     return
                 conn.execute(
@@ -2072,16 +2695,21 @@ class App(BaseHTTPRequestHandler):
             delete_house_attachment(row["attachment_path"] if row else None)
             self.send_json({"ok": True})
 
-    def create_wedding_expense(self, body: dict, file: dict | None = None) -> None:
+    def create_wedding_expense(
+        self, body: dict, file: dict | None = None, initial_payment_file: dict | None = None
+    ) -> None:
         amount = float(body.get("amount") or 0)
         initial_payment = float(body.get("initialPayment") or 0)
         if amount <= 0:
             self.send_error(400, "El monto debe ser mayor a cero")
             return
+        if initial_payment > amount:
+            self.send_error(400, "El abono inicial no puede ser mayor al monto del gasto")
+            return
         description = (body.get("description", "").strip() or "Gasto de boda")[:90]
         category = body.get("category") or "Otro"
         vendor = (body.get("vendor", "").strip())[:90]
-        date = normalize_date(body.get("date", datetime.now().strftime("%Y-%m-%d")))
+        date = normalize_date(body.get("date") or datetime.now().strftime("%Y-%m-%d"))
         payment_date = normalize_date(body.get("paymentDate") or date)
         now = datetime.now().isoformat(timespec="seconds")
         with db_connection() as conn:
@@ -2098,6 +2726,7 @@ class App(BaseHTTPRequestHandler):
                 try:
                     filename, file_path, mime = save_wedding_attachment(expense_id, file)
                 except ValueError as exc:
+                    conn.rollback()
                     self.send_error(400, str(exc))
                     return
                 conn.execute(
@@ -2109,7 +2738,7 @@ class App(BaseHTTPRequestHandler):
                     (filename, str(file_path.relative_to(DATA)), mime, expense_id),
                 )
             if initial_payment > 0:
-                conn.execute(
+                payment_cursor = conn.execute(
                     """
                     INSERT INTO wedding_payments
                     (expense_id, date, amount, note, legacy_id, created_at)
@@ -2123,9 +2752,60 @@ class App(BaseHTTPRequestHandler):
                         now,
                     ),
                 )
+                if initial_payment_file:
+                    payment_id = payment_cursor.lastrowid
+                    try:
+                        payment_filename, payment_file_path, payment_mime = save_wedding_payment_attachment(
+                            payment_id, initial_payment_file
+                        )
+                    except ValueError as exc:
+                        conn.rollback()
+                        self.send_error(400, str(exc))
+                        return
+                    conn.execute(
+                        """
+                        UPDATE wedding_payments
+                        SET attachment_name=?, attachment_path=?, attachment_mime=?
+                        WHERE id=?
+                        """,
+                        (payment_filename, str(payment_file_path.relative_to(DATA)), payment_mime, payment_id),
+                    )
         self.send_json(build_wedding_state(), status=201)
 
-    def create_wedding_payment(self, expense_id: int, body: dict) -> None:
+    def update_wedding_expense(self, expense_id: int, body: dict) -> None:
+        amount = float(body.get("amount") or 0)
+        if amount <= 0:
+            self.send_error(400, "El monto debe ser mayor a cero")
+            return
+        description = (body.get("description", "").strip() or "Gasto de boda")[:90]
+        category = body.get("category") or "Otro"
+        vendor = (body.get("vendor", "").strip())[:90]
+        date = normalize_date(body.get("date") or datetime.now().strftime("%Y-%m-%d"))
+        with db_connection() as conn:
+            paid_so_far = conn.execute(
+                "SELECT COALESCE(SUM(amount), 0) FROM wedding_payments WHERE expense_id=?",
+                (expense_id,),
+            ).fetchone()[0]
+            if amount < paid_so_far:
+                self.send_error(
+                    400,
+                    f"El monto no puede ser menor a lo ya abonado (Q{paid_so_far:.2f})",
+                )
+                return
+            cursor = conn.execute(
+                """
+                UPDATE wedding_expenses
+                SET date=?, description=?, category=?, vendor=?, amount=?
+                WHERE id=?
+                """,
+                (date, description, category, vendor, amount, expense_id),
+            )
+        if cursor.rowcount == 0:
+            self.send_error(404, "Gasto de boda no encontrado")
+            return
+        self.send_json(build_wedding_state())
+
+    def create_wedding_payment(self, expense_id: int, body: dict, file: dict | None = None) -> None:
         amount = float(body.get("amount") or 0)
         if amount <= 0:
             self.send_error(400, "El abono debe ser mayor a cero")
@@ -2134,11 +2814,19 @@ class App(BaseHTTPRequestHandler):
         note = (body.get("note", "").strip())[:90]
         now = datetime.now().isoformat(timespec="seconds")
         with db_connection() as conn:
-            exists = conn.execute("SELECT id FROM wedding_expenses WHERE id=?", (expense_id,)).fetchone()
-            if not exists:
+            expense = conn.execute("SELECT amount FROM wedding_expenses WHERE id=?", (expense_id,)).fetchone()
+            if not expense:
                 self.send_error(404, "Gasto de boda no encontrado")
                 return
-            conn.execute(
+            paid_so_far = conn.execute(
+                "SELECT COALESCE(SUM(amount), 0) FROM wedding_payments WHERE expense_id=?",
+                (expense_id,),
+            ).fetchone()[0]
+            pending = float(expense["amount"]) - float(paid_so_far)
+            if amount > pending:
+                self.send_error(400, f"El abono excede el monto pendiente (Q{max(pending, 0):.2f})")
+                return
+            cursor = conn.execute(
                 """
                 INSERT INTO wedding_payments
                 (expense_id, date, amount, note, legacy_id, created_at)
@@ -2146,7 +2834,53 @@ class App(BaseHTTPRequestHandler):
                 """,
                 (expense_id, date, amount, note, now),
             )
+            if file:
+                payment_id = cursor.lastrowid
+                try:
+                    filename, file_path, mime = save_wedding_payment_attachment(payment_id, file)
+                except ValueError as exc:
+                    conn.rollback()
+                    self.send_error(400, str(exc))
+                    return
+                conn.execute(
+                    """
+                    UPDATE wedding_payments
+                    SET attachment_name=?, attachment_path=?, attachment_mime=?
+                    WHERE id=?
+                    """,
+                    (filename, str(file_path.relative_to(DATA)), mime, payment_id),
+                )
         self.send_json(build_wedding_state(), status=201)
+
+    def update_wedding_payment_attachment(self, payment_id: int, file: dict | None) -> None:
+        if not file:
+            self.send_error(400, "Debes seleccionar un archivo PDF o imagen")
+            return
+        with db_connection() as conn:
+            existing = conn.execute(
+                "SELECT attachment_path FROM wedding_payments WHERE id=?",
+                (payment_id,),
+            ).fetchone()
+            if not existing:
+                self.send_error(404, "Abono no encontrado")
+                return
+            try:
+                filename, file_path, mime = save_wedding_payment_attachment(payment_id, file)
+            except ValueError as exc:
+                self.send_error(400, str(exc))
+                return
+            relative_path = str(file_path.relative_to(DATA))
+            conn.execute(
+                """
+                UPDATE wedding_payments
+                SET attachment_name=?, attachment_path=?, attachment_mime=?
+                WHERE id=?
+                """,
+                (filename, relative_path, mime, payment_id),
+            )
+        if existing["attachment_path"] != relative_path:
+            delete_wedding_attachment(existing["attachment_path"])
+        self.send_json(build_wedding_state())
 
     def update_wedding_attachment(self, expense_id: int, file: dict | None) -> None:
         if not file:
@@ -2214,16 +2948,382 @@ class App(BaseHTTPRequestHandler):
                 "SELECT attachment_path FROM wedding_expenses WHERE id=?",
                 (expense_id,),
             ).fetchone()
+            payment_rows = conn.execute(
+                "SELECT attachment_path FROM wedding_payments WHERE expense_id=?",
+                (expense_id,),
+            ).fetchall()
             conn.execute("DELETE FROM wedding_payments WHERE expense_id=?", (expense_id,))
             cursor = conn.execute("DELETE FROM wedding_expenses WHERE id=?", (expense_id,))
         if cursor.rowcount == 0:
             self.send_error(404, "Gasto de boda no encontrado")
         else:
             delete_wedding_attachment(row["attachment_path"] if row else None)
+            for payment_row in payment_rows:
+                delete_wedding_attachment(payment_row["attachment_path"])
             self.send_json({"ok": True})
 
-    def load_wedding_sample_data(self) -> None:
+    def _debt_fields_from_body(self, body: dict) -> dict:
+        debt_type = body.get("type") or DEBT_TYPES[0]
+        if debt_type not in DEBT_TYPES:
+            debt_type = DEBT_TYPES[0]
+        name = (body.get("name", "").strip() or "Deuda")[:90]
+        is_card = debt_type == "Tarjeta de credito"
+        is_loan = debt_type == "Prestamo"
+        is_other = debt_type == "Otro pago"
+        bank = (body.get("bank") or DEBT_BANKS[0]) if (is_card or is_loan) else ""
+        start_date_raw = body.get("startDate")
+        end_date_raw = body.get("endDate")
+        return {
+            "type": debt_type,
+            "name": name,
+            "bank": bank,
+            "credit_limit": optional_float(body.get("creditLimit")) if is_card else None,
+            "credit_limit_usd": optional_float(body.get("creditLimitUsd")) if is_card else None,
+            "original_amount": optional_float(body.get("originalAmount")) if (is_loan or is_other) else None,
+            "interest_rate": optional_float(body.get("interestRate")) if is_loan else None,
+            "statement_day": optional_day(body.get("statementDay")) if is_card else None,
+            "due_day": optional_day(body.get("dueDay")) if (is_card or is_loan) else None,
+            "monthly_payment": optional_float(body.get("monthlyPayment")) if is_loan else None,
+            "start_date": normalize_date(start_date_raw) if (is_loan and start_date_raw) else None,
+            "end_date": normalize_date(end_date_raw) if ((is_loan or is_other) and end_date_raw) else None,
+        }
+
+    def create_debt(self, body: dict) -> None:
+        fields = self._debt_fields_from_body(body)
+        is_card = fields["type"] == "Tarjeta de credito"
+        initial_balance = 0.0 if is_card else (fields["original_amount"] or 0.0)
+        initial_balance_usd = 0.0 if is_card else None
+        now = datetime.now().isoformat(timespec="seconds")
         with db_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO debts
+                (type, name, bank, current_balance, credit_limit, credit_limit_usd, original_amount,
+                 interest_rate, statement_day, due_day, monthly_payment, balance_usd, start_date, end_date, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    fields["type"], fields["name"], fields["bank"], initial_balance,
+                    fields["credit_limit"], fields["credit_limit_usd"], fields["original_amount"],
+                    fields["interest_rate"], fields["statement_day"], fields["due_day"],
+                    fields["monthly_payment"], initial_balance_usd, fields["start_date"], fields["end_date"], now,
+                ),
+            )
+        self.send_json(build_debts_state(), status=201)
+
+    def update_debt(self, debt_id: int, body: dict) -> None:
+        fields = self._debt_fields_from_body(body)
+        is_card = fields["type"] == "Tarjeta de credito"
+        with db_connection() as conn:
+            existing = conn.execute(
+                "SELECT original_amount, current_balance FROM debts WHERE id=?", (debt_id,)
+            ).fetchone()
+            if not existing:
+                self.send_error(404, "Deuda no encontrada")
+                return
+            balance_clause = ""
+            params = [
+                fields["type"], fields["name"], fields["bank"], fields["credit_limit"], fields["credit_limit_usd"],
+                fields["original_amount"], fields["interest_rate"], fields["statement_day"], fields["due_day"],
+                fields["monthly_payment"], fields["start_date"], fields["end_date"],
+            ]
+            if not is_card:
+                # Re-sincroniza el saldo pendiente cuando se corrige el monto, preservando lo ya abonado.
+                paid = max(float(existing["original_amount"] or 0) - float(existing["current_balance"] or 0), 0)
+                new_balance = max(float(fields["original_amount"] or 0) - paid, 0)
+                balance_clause = ", current_balance=?"
+                params.append(new_balance)
+            params.append(debt_id)
+            cursor = conn.execute(
+                f"""
+                UPDATE debts SET type=?, name=?, bank=?, credit_limit=?, credit_limit_usd=?,
+                  original_amount=?, interest_rate=?, statement_day=?, due_day=?, monthly_payment=?,
+                  start_date=?, end_date=?{balance_clause}
+                WHERE id=?
+                """,
+                params,
+            )
+        if cursor.rowcount == 0:
+            self.send_error(404, "Deuda no encontrada")
+            return
+        self.send_json(build_debts_state())
+
+    def delete_debt(self, debt_id: int) -> None:
+        with db_connection() as conn:
+            payment_rows = conn.execute(
+                "SELECT attachment_path, transaction_id FROM debt_payments WHERE debt_id=?",
+                (debt_id,),
+            ).fetchall()
+            transaction_ids = [row["transaction_id"] for row in payment_rows if row["transaction_id"] is not None]
+            if transaction_ids:
+                placeholders = ",".join("?" * len(transaction_ids))
+                conn.execute(f"DELETE FROM transactions WHERE id IN ({placeholders})", transaction_ids)
+            conn.execute("DELETE FROM transactions WHERE debt_id=?", (debt_id,))
+            conn.execute("DELETE FROM imports WHERE debt_id=?", (debt_id,))
+            conn.execute("DELETE FROM debt_payments WHERE debt_id=?", (debt_id,))
+            cursor = conn.execute("DELETE FROM debts WHERE id=?", (debt_id,))
+        if cursor.rowcount == 0:
+            self.send_error(404, "Deuda no encontrada")
+        else:
+            for row in payment_rows:
+                delete_debt_attachment(row["attachment_path"])
+            self.send_json({"ok": True})
+
+    def create_debt_payment(self, debt_id: int, body: dict, file: dict | None = None) -> None:
+        amount = optional_float(body.get("amount")) or 0
+        if amount <= 0:
+            self.send_error(400, "El abono debe ser mayor a cero")
+            return
+        date = normalize_date(body.get("date", datetime.now().strftime("%Y-%m-%d")))
+        note = (body.get("note", "").strip())[:90]
+        origin_account = body.get("originAccount") or None
+        now = datetime.now().isoformat(timespec="seconds")
+        with db_connection() as conn:
+            debt = conn.execute("SELECT id, name, current_balance FROM debts WHERE id=?", (debt_id,)).fetchone()
+            if not debt:
+                self.send_error(404, "Deuda no encontrada")
+                return
+            transaction_id = None
+            if origin_account:
+                tx_cursor = conn.execute(
+                    """
+                    INSERT INTO transactions
+                    (date, type, category, description, account, amount, source_import_id, created_at)
+                    VALUES (?, 'Transferencia', ?, ?, ?, ?, NULL, ?)
+                    """,
+                    (date, DEBT_PAYMENT_CATEGORY, f"Pago {debt['name']}"[:75], origin_account, amount, now),
+                )
+                transaction_id = tx_cursor.lastrowid
+            cursor = conn.execute(
+                """
+                INSERT INTO debt_payments (debt_id, date, amount, note, origin_account, transaction_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (debt_id, date, amount, note, origin_account, transaction_id, now),
+            )
+            new_balance = max(float(debt["current_balance"] or 0) - amount, 0)
+            conn.execute("UPDATE debts SET current_balance=? WHERE id=?", (new_balance, debt_id))
+            if file:
+                payment_id = cursor.lastrowid
+                try:
+                    filename, file_path, mime = save_debt_payment_attachment(payment_id, file)
+                except ValueError as exc:
+                    self.send_error(400, str(exc))
+                    return
+                conn.execute(
+                    """
+                    UPDATE debt_payments
+                    SET attachment_name=?, attachment_path=?, attachment_mime=?
+                    WHERE id=?
+                    """,
+                    (filename, str(file_path.relative_to(DATA)), mime, payment_id),
+                )
+        self.send_json(build_debts_state(), status=201)
+
+    def _ahorro_fields_from_body(self, body: dict) -> dict | None:
+        ahorro_type = body.get("type") or AHORRO_TYPES[0]
+        if ahorro_type not in AHORRO_TYPES:
+            ahorro_type = AHORRO_TYPES[0]
+        name = (body.get("name", "").strip() or "Ahorro")[:90]
+        bank = body.get("bank") or DEBT_BANKS[0]
+        account = body.get("account") or ACCOUNTS[0]
+        initial_balance = optional_float(body.get("initialBalance")) or 0
+        monthly_target = optional_float(body.get("monthlyTarget")) or 0
+        return {
+            "type": ahorro_type, "name": name, "bank": bank, "account": account,
+            "initial_balance": initial_balance, "monthly_target": monthly_target,
+        }
+
+    def create_ahorro(self, body: dict) -> None:
+        fields = self._ahorro_fields_from_body(body)
+        now = datetime.now().isoformat(timespec="seconds")
+        with db_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO ahorros (type, name, bank, account, initial_balance, monthly_target, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    fields["type"], fields["name"], fields["bank"], fields["account"],
+                    fields["initial_balance"], fields["monthly_target"], now,
+                ),
+            )
+        self.send_json(build_ahorros_state(), status=201)
+
+    def update_ahorro(self, ahorro_id: int, body: dict) -> None:
+        fields = self._ahorro_fields_from_body(body)
+        with db_connection() as conn:
+            existing = conn.execute("SELECT type FROM ahorros WHERE id=?", (ahorro_id,)).fetchone()
+            if not existing:
+                self.send_error(404, "Ahorro no encontrado")
+                return
+            if existing["type"] != fields["type"]:
+                has_movements = conn.execute(
+                    "SELECT 1 FROM transactions WHERE ahorro_id=? LIMIT 1", (ahorro_id,)
+                ).fetchone()
+                if has_movements:
+                    self.send_error(
+                        400,
+                        "No se puede cambiar el tipo de un ahorro que ya tiene movimientos registrados",
+                    )
+                    return
+            cursor = conn.execute(
+                "UPDATE ahorros SET type=?, name=?, bank=?, account=?, initial_balance=?, monthly_target=? WHERE id=?",
+                (
+                    fields["type"], fields["name"], fields["bank"], fields["account"],
+                    fields["initial_balance"], fields["monthly_target"], ahorro_id,
+                ),
+            )
+        if cursor.rowcount == 0:
+            self.send_error(404, "Ahorro no encontrado")
+            return
+        self.send_json(build_ahorros_state())
+
+    def delete_ahorro(self, ahorro_id: int) -> None:
+        with db_connection() as conn:
+            tx_rows = conn.execute(
+                "SELECT attachment_path FROM transactions WHERE ahorro_id=?", (ahorro_id,)
+            ).fetchall()
+            conn.execute("DELETE FROM transactions WHERE ahorro_id=?", (ahorro_id,))
+            cursor = conn.execute("DELETE FROM ahorros WHERE id=?", (ahorro_id,))
+        if cursor.rowcount == 0:
+            self.send_error(404, "Ahorro no encontrado")
+        else:
+            for row in tx_rows:
+                delete_transaction_attachment(row["attachment_path"])
+            self.send_json({"ok": True})
+
+    def create_ahorro_movement(self, ahorro_id: int, body: dict, file: dict | None = None) -> None:
+        amount = optional_float(body.get("amount")) or 0
+        if amount <= 0:
+            self.send_error(400, "El monto debe ser mayor a cero")
+            return
+        direction = body.get("direction") or "Entrada"
+        date = normalize_date(body.get("date", datetime.now().strftime("%Y-%m-%d")))
+        now = datetime.now().isoformat(timespec="seconds")
+        with db_connection() as conn:
+            ahorro = conn.execute("SELECT id, type, account FROM ahorros WHERE id=?", (ahorro_id,)).fetchone()
+            if not ahorro:
+                self.send_error(404, "Ahorro no encontrado")
+                return
+            if ahorro["type"] == "Fondo":
+                tx_type = "Transferencia"
+                category = FUND_CATEGORY
+                description = (body.get("description", "").strip() or "Aporte a fondo")[:75]
+            else:
+                tx_type = "Ahorro" if direction == "Entrada" else "Gasto"
+                category = AHORRO_CATEGORY_IN if direction == "Entrada" else AHORRO_CATEGORY_OUT
+                description = (body.get("description", "").strip() or "Movimiento de ahorro")[:75]
+            cursor = conn.execute(
+                """
+                INSERT INTO transactions
+                (date, type, category, description, account, amount, source_import_id, ahorro_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)
+                """,
+                (date, tx_type, category, description, ahorro["account"], amount, ahorro_id, now),
+            )
+            if file:
+                transaction_id = cursor.lastrowid
+                try:
+                    filename, file_path, mime = save_transaction_attachment(transaction_id, file)
+                except ValueError as exc:
+                    self.send_error(400, str(exc))
+                    return
+                conn.execute(
+                    """
+                    UPDATE transactions
+                    SET attachment_name=?, attachment_path=?, attachment_mime=?
+                    WHERE id=?
+                    """,
+                    (filename, str(file_path.relative_to(DATA)), mime, transaction_id),
+                )
+        self.send_json(build_ahorros_state(), status=201)
+
+    def update_debt_payment_attachment(self, payment_id: int, file: dict | None) -> None:
+        if not file:
+            self.send_error(400, "Debes seleccionar un archivo PDF o imagen")
+            return
+        with db_connection() as conn:
+            existing = conn.execute(
+                "SELECT attachment_path FROM debt_payments WHERE id=?",
+                (payment_id,),
+            ).fetchone()
+            if not existing:
+                self.send_error(404, "Abono no encontrado")
+                return
+            try:
+                filename, file_path, mime = save_debt_payment_attachment(payment_id, file)
+            except ValueError as exc:
+                self.send_error(400, str(exc))
+                return
+            relative_path = str(file_path.relative_to(DATA))
+            conn.execute(
+                """
+                UPDATE debt_payments
+                SET attachment_name=?, attachment_path=?, attachment_mime=?
+                WHERE id=?
+                """,
+                (filename, relative_path, mime, payment_id),
+            )
+        if existing["attachment_path"] != relative_path:
+            delete_debt_attachment(existing["attachment_path"])
+        self.send_json(build_debts_state())
+
+    def serve_debt_payment_attachment(self, payment_id: int) -> None:
+        with db_connection() as conn:
+            row = conn.execute(
+                "SELECT attachment_name, attachment_path, attachment_mime FROM debt_payments WHERE id=?",
+                (payment_id,),
+            ).fetchone()
+        if not row or not row["attachment_path"]:
+            self.send_error(404, "Archivo no encontrado")
+            return
+        file_path = DATA / row["attachment_path"]
+        if not file_path.exists() or not file_path.is_file():
+            self.send_error(404, "Archivo no encontrado")
+            return
+        content_type = row["attachment_mime"] or "application/octet-stream"
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Disposition", f'inline; filename="{row["attachment_name"]}"')
+        self.send_header("Content-Length", str(file_path.stat().st_size))
+        self.end_headers()
+        self.wfile.write(file_path.read_bytes())
+
+    def serve_debt_transactions(self, debt_id: int) -> None:
+        with db_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM transactions WHERE debt_id=? ORDER BY date DESC, id DESC",
+                (debt_id,),
+            ).fetchall()
+        self.send_json([rowdict(row) for row in rows])
+
+    def serve_debts_export(self) -> None:
+        debts_state = build_debts_state()
+        payload = build_debts_xlsx(debts_state)
+        filename = f'deudas-{datetime.now().strftime("%Y-%m-%d")}.xlsx'
+        self.send_file_bytes(
+            payload,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            filename,
+        )
+
+    def serve_ahorros_export(self) -> None:
+        payload = build_ahorros_xlsx(build_ahorros_state())
+        filename = f'ahorros-{datetime.now().strftime("%Y-%m-%d")}.xlsx'
+        self.send_file_bytes(
+            payload,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            filename,
+        )
+
+    def load_wedding_sample_data(self) -> None:
+        if not DEMO_MODE:
+            self.send_error(403, "Solo disponible en modo demo")
+            return
+        with db_connection() as conn:
+            expense_rows = conn.execute("SELECT attachment_path FROM wedding_expenses").fetchall()
+            payment_rows = conn.execute("SELECT attachment_path FROM wedding_payments").fetchall()
             conn.execute("DELETE FROM wedding_payments")
             conn.execute("DELETE FROM wedding_expenses")
             conn.execute(
@@ -2266,6 +3366,10 @@ class App(BaseHTTPRequestHandler):
                             now,
                         ),
                     )
+        for row in expense_rows:
+            delete_wedding_attachment(row["attachment_path"])
+        for row in payment_rows:
+            delete_wedding_attachment(row["attachment_path"])
         self.send_json(build_wedding_state(), status=201)
 
     def serve_wedding_attachment(self, expense_id: int) -> None:
@@ -2277,6 +3381,68 @@ class App(BaseHTTPRequestHandler):
                 WHERE id=?
                 """,
                 (expense_id,),
+            ).fetchone()
+        if not row or not row["attachment_path"]:
+            self.send_error(404, "Archivo no encontrado")
+            return
+        file_path = DATA / row["attachment_path"]
+        if not file_path.exists() or not file_path.is_file():
+            self.send_error(404, "Archivo no encontrado")
+            return
+        content_type = row["attachment_mime"] or "application/octet-stream"
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Disposition", f'inline; filename="{row["attachment_name"]}"')
+        self.send_header("Content-Length", str(file_path.stat().st_size))
+        self.end_headers()
+        self.wfile.write(file_path.read_bytes())
+
+    def serve_wedding_export(self) -> None:
+        wedding = build_wedding_state()
+        payload = build_wedding_xlsx(wedding)
+        filename = f'gastos-boda-{datetime.now().strftime("%Y-%m-%d")}.xlsx'
+        self.send_file_bytes(
+            payload,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            filename,
+        )
+
+    def serve_transactions_export(self, month: str) -> None:
+        dashboard = build_dashboard(month)
+        payload = build_transactions_xlsx(dashboard, month)
+        self.send_file_bytes(
+            payload,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            f"movimientos-{month}.xlsx",
+        )
+
+    def serve_sales_export(self, month: str) -> None:
+        dashboard = build_dashboard(month)
+        payload = build_sales_xlsx(dashboard, month)
+        self.send_file_bytes(
+            payload,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            f"ventas-usd-{month}.xlsx",
+        )
+
+    def serve_house_export(self, month: str) -> None:
+        house = build_house_state(month)
+        payload = build_house_xlsx(house, month)
+        self.send_file_bytes(
+            payload,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            f"pago-casa-{month}.xlsx",
+        )
+
+    def serve_wedding_payment_attachment(self, payment_id: int) -> None:
+        with db_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT attachment_name, attachment_path, attachment_mime
+                FROM wedding_payments
+                WHERE id=?
+                """,
+                (payment_id,),
             ).fetchone()
         if not row or not row["attachment_path"]:
             self.send_error(404, "Archivo no encontrado")
@@ -2452,7 +3618,13 @@ class App(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def serve_static(self, path: str) -> None:
-        file_path = STATIC / ("index.html" if path in ("", "/") else path.lstrip("/"))
+        requested = "index.html" if path in ("", "/") else path.lstrip("/")
+        file_path = (STATIC / requested).resolve()
+        try:
+            file_path.relative_to(STATIC.resolve())
+        except ValueError:
+            self.send_error(404)
+            return
         if not file_path.exists() or not file_path.is_file():
             self.send_error(404)
             return
@@ -2463,6 +3635,7 @@ class App(BaseHTTPRequestHandler):
             content_type = "application/javascript"
         self.send_response(200)
         self.send_header("Content-Type", f"{content_type}; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
         self.end_headers()
         self.wfile.write(file_path.read_bytes())
 
@@ -2511,9 +3684,64 @@ def parse_multipart(handler: BaseHTTPRequestHandler) -> tuple[dict, dict]:
     return fields, files
 
 
+def build_monthly_control(month: str) -> dict:
+    if not re.match(r"^\d{4}-\d{2}$", month or ""):
+        month = datetime.now().strftime("%Y-%m")
+    with db_connection() as conn:
+        budget_row = conn.execute(
+            "SELECT amount FROM monthly_budgets WHERE month = ?",
+            (month,),
+        ).fetchone()
+        rows = conn.execute(
+            "SELECT type, account, amount, source_import_id FROM transactions WHERE substr(date, 1, 7) = ?",
+            (month,),
+        ).fetchall()
+
+    budget = float(budget_row["amount"]) if budget_row else 0.0
+    imported_credits = 0.0
+    imported_debits = 0.0
+    manual_cash_expenses = 0.0
+    total_credits = 0.0
+    total_debits = 0.0
+
+    for row in rows:
+        amount = float(row["amount"] or 0)
+        row_type = row["type"]
+        is_imported = row["source_import_id"] is not None
+        if row_type in {"Ingreso", "Ahorro", "Venta USD"}:
+            total_credits += amount
+            if is_imported:
+                imported_credits += amount
+        elif row_type in {"Gasto", "Transferencia"}:
+            total_debits += amount
+            if is_imported:
+                imported_debits += amount
+            elif row_type == "Gasto" and row["account"] == "Efectivo":
+                manual_cash_expenses += amount
+
+    return {
+        "month": month,
+        "budget": round(budget, 2),
+        "importedCredits": round(imported_credits, 2),
+        "importedDebits": round(imported_debits, 2),
+        "manualCashExpenses": round(manual_cash_expenses, 2),
+        "totalCredits": round(total_credits, 2),
+        "totalDebits": round(total_debits, 2),
+        "remaining": round(budget - total_debits, 2),
+        "recordCount": len(rows),
+    }
+
 def build_dashboard(month: str) -> dict:
     with db_connection() as conn:
-        txs = conn.execute("SELECT * FROM transactions WHERE substr(date,1,7)=? ORDER BY date", (month,)).fetchall()
+        all_txs = conn.execute("SELECT * FROM transactions WHERE substr(date,1,7)=? ORDER BY date", (month,)).fetchall()
+        budget_row = conn.execute(
+            "SELECT amount FROM monthly_budgets WHERE month = ?",
+            (month,),
+        ).fetchone()
+    initial_balance = float(budget_row["amount"]) if budget_row else 0.0
+    savings_txs = [row for row in all_txs if row["ahorro_id"] is not None]
+    fund_txs = [row for row in all_txs if row["fund_id"] is not None]
+    txs = [row for row in all_txs if row["ahorro_id"] is None and row["fund_id"] is None]
     base_income = sum(row["amount"] for row in txs if row["type"] == "Ingreso")
     usd_sales = sum(row["amount"] for row in txs if row["type"] == "Venta USD")
     income = base_income
@@ -2562,12 +3790,16 @@ def build_dashboard(month: str) -> dict:
         "expenses": expenses,
         "savings": savings,
         "transfers": transfers,
+        "initialBalance": round(initial_balance, 2),
         "balance": income - expenses - savings,
+        "available": round(initial_balance + income - expenses - savings, 2),
         "savingsRate": savings / income if income else 0,
         "byCategory": sorted(by_category.items(), key=lambda x: x[1], reverse=True),
         "byAccount": sorted(by_account.items(), key=lambda x: x[0]),
         "byBank": [{"bank": bank, **values} for bank, values in sorted(by_bank.items(), key=lambda x: x[0])],
         "transactions": [rowdict(row) for row in txs],
+        "savingsTransactions": [rowdict(row) for row in savings_txs],
+        "fundTransactions": [rowdict(row) for row in fund_txs],
     }
 
 
@@ -2588,7 +3820,7 @@ def build_reports(month: str) -> dict:
     first_month = months[0]
     last_month = months[-1]
     with db_connection() as conn:
-        rows = conn.execute(
+        all_rows = conn.execute(
             """
             SELECT *
             FROM transactions
@@ -2597,6 +3829,7 @@ def build_reports(month: str) -> dict:
             """,
             (first_month, last_month),
         ).fetchall()
+        rows = [row for row in all_rows if row["ahorro_id"] is None and row["fund_id"] is None]
         recurring_rows = conn.execute(
             """
             SELECT account, amount, frequency
@@ -2698,6 +3931,29 @@ def build_reports(month: str) -> dict:
         key=lambda item: item["amount"],
         reverse=True,
     )[:8]
+
+    recurring_summary = build_recurring_state(last_month)["summary"]
+
+    wedding_state = build_wedding_state()
+    wedding = {
+        "hasData": len(wedding_state["expenses"]) > 0,
+        "budget": wedding_state["budget"],
+        "spent": wedding_state["spent"],
+        "paid": wedding_state["paid"],
+        "pending": wedding_state["pending"],
+        "available": wedding_state["available"],
+        "progress": wedding_state["progress"],
+    }
+
+    house_state = build_house_state(last_month)
+    with db_connection() as conn:
+        house_ever = conn.execute("SELECT 1 FROM house_payments LIMIT 1").fetchone()
+    house = {
+        "hasData": house_ever is not None,
+        "total": house_state["total"],
+        "count": house_state["count"],
+    }
+
     return {
         "month": last_month,
         "summary": {
@@ -2725,6 +3981,9 @@ def build_reports(month: str) -> dict:
         "byPaymentMethod": sorted(
             by_payment_method.items(), key=lambda item: item[1], reverse=True
         ),
+        "recurringSummary": recurring_summary,
+        "wedding": wedding,
+        "house": house,
         "topExpenses": top_expenses,
     }
 
@@ -2838,7 +4097,43 @@ def report_rows(report: dict) -> dict[str, list[dict]]:
             {"values": []},
             {"values": ["Fecha", "Descripcion", "Categoria", "Cuenta", "Monto"], "style": 2},
         ],
+        "Compromisos": [
+            {"values": ["Compromisos fijos del mes", report_month_name(report["month"])], "style": 1, "height": 24},
+            {"values": []},
+            {"values": ["Concepto", "Monto"], "style": 2},
+        ],
     }
+    recurring_summary = report["recurringSummary"]
+    for label, key, style in (
+        ("Debido este mes", "dueThisMonth", 3),
+        ("Pagado este mes", "paidThisMonth", 4),
+        ("Pendiente este mes", "pendingThisMonth", 5),
+        ("Equivalente mensual", "monthlyEquivalent", 3),
+        ("Provision anual", "annualProvision", 3),
+    ):
+        rows["Compromisos"].append({"values": [label, recurring_summary.get(key, 0)], "styles": [0, style]})
+    if report["wedding"]["hasData"]:
+        wedding = report["wedding"]
+        rows["Boda"] = [
+            {"values": ["Presupuesto de boda", report_month_name(report["month"])], "style": 1, "height": 24},
+            {"values": []},
+            {"values": ["Concepto", "Monto"], "style": 2},
+            {"values": ["Presupuesto", wedding["budget"]], "styles": [0, 3]},
+            {"values": ["Gastado", wedding["spent"]], "styles": [0, 5]},
+            {"values": ["Pagado", wedding["paid"]], "styles": [0, 4]},
+            {"values": ["Pendiente", wedding["pending"]], "styles": [0, 5]},
+            {"values": ["Disponible", wedding["available"]], "styles": [0, 3]},
+            {"values": ["Ejecutado", report_percent(wedding["progress"])], "styles": [0, 0]},
+        ]
+    if report["house"]["hasData"]:
+        house = report["house"]
+        rows["Casa"] = [
+            {"values": ["Pago de la casa", report_month_name(report["month"])], "style": 1, "height": 24},
+            {"values": []},
+            {"values": ["Concepto", "Monto"], "style": 2},
+            {"values": ["Pagado este mes", house["total"]], "styles": [0, 4]},
+            {"values": ["Cantidad de pagos", house["count"]], "styles": [0, 0]},
+        ]
     for label, key in (
         ("Ingresos", "income"),
         ("Gastos", "expenses"),
@@ -2904,15 +4199,7 @@ def report_rows(report: dict) -> dict[str, list[dict]]:
     return rows
 
 
-def build_report_xlsx(report: dict) -> bytes:
-    sheets = report_rows(report)
-    widths = {
-        "Resumen": [28, 18, 18, 18, 14],
-        "Bancos": [28, 16, 16, 16, 18, 16, 14],
-        "Tendencia": [22, 16, 16, 16, 16],
-        "Categorias": [34, 18],
-        "Gastos principales": [14, 45, 22, 30, 16],
-    }
+def build_xlsx_workbook(sheets: dict[str, list[dict]], widths: dict[str, list[int]]) -> bytes:
     styles = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <numFmts count="1"><numFmt numFmtId="164" formatCode="Q #,##0.00"/></numFmts>
@@ -2994,6 +4281,226 @@ def build_report_xlsx(report: dict) -> bytes:
         for idx, name in enumerate(sheet_names, start=1):
             package.writestr(f"xl/worksheets/sheet{idx}.xml", xlsx_sheet(sheets[name], widths[name]))
     return output.getvalue()
+
+
+def build_report_xlsx(report: dict) -> bytes:
+    sheets = report_rows(report)
+    widths = {
+        "Resumen": [28, 18, 18, 18, 14],
+        "Bancos": [28, 16, 16, 16, 18, 16, 14],
+        "Tendencia": [22, 16, 16, 16, 16],
+        "Categorias": [34, 18],
+        "Gastos principales": [14, 45, 22, 30, 16],
+        "Compromisos": [28, 18],
+        "Boda": [28, 18],
+        "Casa": [28, 18],
+    }
+    return build_xlsx_workbook(sheets, widths)
+
+
+def build_wedding_xlsx(wedding: dict) -> bytes:
+    today = datetime.now().strftime("%d/%m/%Y")
+    rows = [
+        {"values": ["Gastos de boda", today], "style": 1, "height": 24},
+        {"values": []},
+        {"values": ["Presupuesto", "Gastado", "Pagado", "Pendiente", "Disponible"], "style": 2},
+        {
+            "values": [
+                wedding["budget"],
+                wedding["spent"],
+                wedding["paid"],
+                wedding["pending"],
+                wedding["available"],
+            ],
+            "styles": [3, 5, 4, 5, 3],
+        },
+        {"values": []},
+        {
+            "values": [
+                "Vencimiento",
+                "Concepto",
+                "Categoria",
+                "Proveedor",
+                "Total",
+                "Abonado",
+                "Pendiente",
+                "Estado",
+            ],
+            "style": 2,
+        },
+    ]
+    for expense in wedding["expenses"]:
+        rows.append(
+            {
+                "values": [
+                    expense["date"],
+                    expense["description"],
+                    expense["category"],
+                    expense["vendor"] or "-",
+                    expense["amount"],
+                    expense["paid_amount"],
+                    expense["pending_amount"],
+                    expense["status"],
+                ],
+                "styles": [0, 0, 0, 0, 3, 4, 5, 0],
+            }
+        )
+    widths = {"Gastos de boda": [14, 34, 16, 26, 14, 14, 14, 14]}
+    return build_xlsx_workbook({"Gastos de boda": rows}, widths)
+
+
+def build_transactions_xlsx(dashboard: dict, month: str) -> bytes:
+    rows = [
+        {"values": ["Movimientos del mes", report_month_name(month)], "style": 1, "height": 24},
+        {"values": []},
+        {"values": ["Ingresos", "Gastos", "Ahorro", "Disponible"], "style": 2},
+        {
+            "values": [dashboard["income"], dashboard["expenses"], dashboard["savings"], dashboard["available"]],
+            "styles": [4, 5, 3, 3],
+        },
+        {"values": []},
+        {"values": ["Fecha", "Tipo", "Categoria", "Cuenta", "Descripcion", "Monto", "Origen"], "style": 2},
+    ]
+    for tx in dashboard["transactions"]:
+        rows.append(
+            {
+                "values": [
+                    tx["date"],
+                    tx["type"],
+                    tx["category"],
+                    tx["account"],
+                    tx["description"],
+                    tx["amount"],
+                    "Importado" if tx.get("source_import_id") else "Manual",
+                ],
+                "styles": [0, 0, 0, 0, 0, 3, 0],
+            }
+        )
+    widths = {"Movimientos": [14, 14, 18, 26, 34, 14, 14]}
+    return build_xlsx_workbook({"Movimientos": rows}, widths)
+
+
+
+
+def build_sales_xlsx(dashboard: dict, month: str) -> bytes:
+    sale_txs = [
+        tx for tx in dashboard.get("transactions", []) if tx["type"] == "Venta USD" and not tx.get("source_import_id")
+    ]
+    gtq_total = sum(tx["amount"] for tx in sale_txs)
+    usd_total = sum(tx.get("usd_amount") or 0 for tx in sale_txs)
+    rows = [
+        {"values": ["Ventas de dolares", report_month_name(month)], "style": 1, "height": 24},
+        {"values": []},
+        {"values": ["Ventas Quetzales", "Ventas USD", "Registros"], "style": 2},
+        {"values": [gtq_total, usd_total, len(sale_txs)], "styles": [4, 4, 0]},
+        {"values": []},
+        {"values": ["Fecha", "Tipo", "Categoria", "Cuenta", "Descripcion", "Monto Q", "Monto USD"], "style": 2},
+    ]
+    for tx in sale_txs:
+        rows.append(
+            {
+                "values": [
+                    tx["date"],
+                    tx["type"],
+                    tx["category"],
+                    tx["account"],
+                    tx["description"],
+                    tx["amount"],
+                    tx.get("usd_amount") or 0,
+                ],
+                "styles": [0, 0, 0, 0, 0, 3, 3],
+            }
+        )
+    widths = {"Ventas USD": [14, 14, 16, 26, 34, 14, 14]}
+    return build_xlsx_workbook({"Ventas USD": rows}, widths)
+
+
+def build_house_xlsx(house: dict, month: str) -> bytes:
+    rows = [
+        {"values": ["Pagos de la casa", report_month_name(month)], "style": 1, "height": 24},
+        {"values": []},
+        {"values": ["Total pagado", "Cantidad de pagos"], "style": 2},
+        {"values": [house["total"], house["count"]], "styles": [4, 0]},
+        {"values": []},
+        {"values": ["Fecha", "Concepto", "Monto", "Documento"], "style": 2},
+    ]
+    for payment in house["payments"]:
+        rows.append(
+            {
+                "values": [
+                    payment["paymentDate"],
+                    payment["description"],
+                    payment["amount"],
+                    "Si" if payment["has_attachment"] else "No",
+                ],
+                "styles": [0, 0, 3, 0],
+            }
+        )
+    widths = {"Pagos casa": [14, 34, 14, 14]}
+    return build_xlsx_workbook({"Pagos casa": rows}, widths)
+
+
+def build_debts_xlsx(debts_state: dict) -> bytes:
+    today = datetime.now().strftime("%d/%m/%Y")
+    rows = [
+        {"values": ["Deudas y tarjetas", today], "style": 1, "height": 24},
+        {"values": []},
+        {"values": ["Deuda total", "Credito disponible", "Pago minimo"], "style": 2},
+        {
+            "values": [debts_state["totalDebt"], debts_state["totalAvailable"], debts_state["minPaymentTotal"]],
+            "styles": [5, 4, 3],
+        },
+        {"values": []},
+        {
+            "values": ["Nombre", "Tipo", "Banco", "Saldo", "Limite/Original", "Tasa %", "Cuota", "Dia pago", "Fecha fin/limite"],
+            "style": 2,
+        },
+    ]
+    for debt in debts_state["debts"]:
+        is_card = debt["type"] == "Tarjeta de credito"
+        rows.append(
+            {
+                "values": [
+                    debt["name"],
+                    debt["type"],
+                    debt["bank"] or "-",
+                    debt["current_balance"],
+                    (debt["credit_limit"] if is_card else debt["original_amount"]) or 0,
+                    debt["interest_rate"] or 0,
+                    (debt["monthly_payment"] if not is_card else 0) or 0,
+                    debt["due_day"] or "-",
+                    debt["end_date"] or "-",
+                ],
+                "styles": [0, 0, 0, 5, 3, 0, 3, 0, 0],
+            }
+        )
+    widths = {"Deudas": [24, 18, 16, 14, 16, 10, 12, 10, 14]}
+    return build_xlsx_workbook({"Deudas": rows}, widths)
+
+
+def build_ahorros_xlsx(ahorros_state: dict) -> bytes:
+    today = datetime.now().strftime("%d/%m/%Y")
+    rows = [
+        {"values": ["Ahorros y fondos", today], "style": 1, "height": 24},
+        {"values": []},
+        {"values": ["Saldo total", "Cuentas registradas"], "style": 2},
+        {"values": [ahorros_state["totalBalance"], ahorros_state["count"]], "styles": [5, 0]},
+        {"values": []},
+        {"values": ["Nombre", "Tipo", "Banco", "Cuenta", "Aporte mensual", "Saldo actual"], "style": 2},
+    ]
+    for ahorro in ahorros_state["ahorros"]:
+        rows.append(
+            {
+                "values": [
+                    ahorro["name"], ahorro["type"], ahorro["bank"], ahorro["account"],
+                    ahorro["monthly_target"] if ahorro["type"] == "Fondo" else "-",
+                    ahorro["current_balance"],
+                ],
+                "styles": [0, 0, 0, 0, 3, 5],
+            }
+        )
+    widths = {"Ahorros": [24, 12, 16, 26, 16, 16]}
+    return build_xlsx_workbook({"Ahorros": rows}, widths)
 
 
 def pdf_escape_text(value) -> str:
@@ -3105,6 +4612,33 @@ def build_report_pdf(report: dict) -> bytes:
             ],
             [140, 100, 100, 100, 100],
         )
+    add_section("Compromisos fijos del mes")
+    add_row(["Concepto", "Monto"], [300, 240], True)
+    recurring_summary = report["recurringSummary"]
+    for label, key in (
+        ("Debido este mes", "dueThisMonth"),
+        ("Pagado este mes", "paidThisMonth"),
+        ("Pendiente este mes", "pendingThisMonth"),
+        ("Equivalente mensual", "monthlyEquivalent"),
+        ("Provision anual", "annualProvision"),
+    ):
+        add_row([label, report_money(recurring_summary.get(key, 0))], [300, 240])
+    if report["wedding"]["hasData"]:
+        wedding = report["wedding"]
+        add_section("Presupuesto de boda")
+        add_row(["Concepto", "Monto"], [300, 240], True)
+        add_row(["Presupuesto", report_money(wedding["budget"])], [300, 240])
+        add_row(["Gastado", report_money(wedding["spent"])], [300, 240])
+        add_row(["Pagado", report_money(wedding["paid"])], [300, 240])
+        add_row(["Pendiente", report_money(wedding["pending"])], [300, 240])
+        add_row(["Disponible", report_money(wedding["available"])], [300, 240])
+        add_row(["Ejecutado", report_percent(wedding["progress"])], [300, 240])
+    if report["house"]["hasData"]:
+        house = report["house"]
+        add_section("Pago de la casa")
+        add_row(["Concepto", "Monto"], [300, 240], True)
+        add_row(["Pagado este mes", report_money(house["total"])], [300, 240])
+        add_row(["Cantidad de pagos", str(house["count"])], [300, 240])
     add_section("Gastos principales")
     add_row(["Fecha", "Descripcion", "Categoria", "Monto"], [85, 255, 115, 85], True)
     for expense in report["topExpenses"][:12]:
@@ -3164,4 +4698,13 @@ if __name__ == "__main__":
     print(f"Finanzas Local en http://{display_host}:{APP_PORT}")
     if AUTH_ENABLED and AUTH_PASSWORD == "cambiar-esta-clave" and not AUTH_PASSWORD_HASH:
         print("Aviso: cambia FINANZAS_PASSWORD o FINANZAS_PASSWORD_HASH antes de publicar el sistema.")
+    if AUTH_ENABLED and not SESSION_SECRET_FROM_ENV:
+        print("Aviso: define FINANZAS_SESSION_SECRET para que las sesiones sobrevivan a reinicios.")
     server.serve_forever()
+
+
+
+
+
+
+

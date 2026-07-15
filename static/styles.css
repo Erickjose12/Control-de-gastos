@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   color-scheme: dark;
   --ink: #f4f7ff;
   --muted: #8292b5;
@@ -370,6 +370,13 @@ input[type="file"] {
   padding: 8px 10px;
 }
 
+input[type="file"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+}
+
 .kpis {
   display: grid;
   gap: 16px;
@@ -422,6 +429,19 @@ input[type="file"] {
   box-shadow: inset 0 3px 0 rgba(91, 108, 255, 0.72);
 }
 
+.kpi-initial {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 8px;
+}
+
+.kpi-initial em {
+  color: var(--ink);
+  font-family: Consolas, "Courier New", monospace;
+  font-style: normal;
+}
+
 .kpi.rate {
   box-shadow: inset 0 3px 0 rgba(245, 165, 36, 0.72);
 }
@@ -437,11 +457,10 @@ input[type="file"] {
 }
 
 .dollar-sale-kpis {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.wedding-dashboard-card,
-.recurring-dashboard-card {
+.wedding-dashboard-card {
   margin-top: 16px;
 }
 
@@ -451,6 +470,173 @@ input[type="file"] {
 
 .wedding-progress .bar-fill {
   background: var(--teal);
+}
+
+.goal-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  padding: 16px 18px;
+}
+
+.goal-card {
+  background: var(--panel-raised);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.goal-card.done {
+  background: color-mix(in srgb, var(--green) 8%, var(--panel-raised));
+}
+
+.goal-card-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.goal-name {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0 0 3px;
+}
+
+.goal-tag {
+  color: var(--muted);
+  display: block;
+  font-size: 10.5px;
+}
+
+.goal-bank {
+  background: color-mix(in srgb, var(--teal) 14%, transparent);
+  border-radius: 999px;
+  color: var(--teal);
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 700;
+  margin-top: 5px;
+  padding: 2px 8px;
+}
+
+.goal-pct {
+  color: var(--violet);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.goal-card.done .goal-pct {
+  color: var(--green);
+}
+
+.goal-card .bar-track {
+  height: 10px;
+  margin-bottom: 10px;
+}
+
+.goal-card .bar-fill {
+  border-radius: 999px;
+}
+
+.goal-amounts {
+  display: flex;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12.5px;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.goal-amounts .saved {
+  color: var(--green);
+  font-weight: 700;
+}
+
+.goal-amounts .target {
+  color: var(--muted);
+}
+
+.goal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.goal-actions .table-action {
+  flex: 1;
+  margin-right: 0;
+  min-width: 0;
+  text-align: center;
+}
+
+#debtGrid.goal-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+#debtGrid .goal-actions {
+  justify-content: center;
+}
+
+#debtGrid .goal-actions .table-action {
+  flex: 0 1 auto;
+  min-width: 118px;
+}
+
+.debt-due {
+  border-radius: 8px;
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  padding: 4px 9px;
+}
+
+.debt-due.soon {
+  background: color-mix(in srgb, var(--amber) 16%, transparent);
+  color: var(--amber);
+}
+
+.debt-due.ok {
+  background: color-mix(in srgb, var(--green) 14%, transparent);
+  color: var(--green);
+}
+
+.debt-due.none {
+  background: var(--field-strong);
+  color: var(--muted);
+}
+
+.goal-card.alert {
+  border-color: color-mix(in srgb, var(--amber) 55%, var(--line));
+}
+
+.debt-rows {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.debt-rowline {
+  display: flex;
+  font-size: 12px;
+  justify-content: space-between;
+}
+
+.debt-rowline span {
+  color: var(--muted);
+}
+
+.debt-rowline strong {
+  font-family: Consolas, "Courier New", monospace;
+  font-weight: 700;
+}
+
+.muted-inline {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 400;
 }
 
 .view-section {
@@ -468,7 +654,36 @@ input[type="file"] {
 }
 
 .movements-import-layout {
-  grid-template-columns: 1fr;
+  align-items: start;
+  grid-template-columns: minmax(280px, 0.68fr) minmax(0, 1.32fr);
+}
+
+.review-panel .review-table {
+  min-width: 0;
+}
+
+.review-panel .review-table .col-date {
+  width: 84px;
+}
+
+.review-panel .review-table .col-account {
+  width: 185px;
+}
+
+.review-panel .review-table .col-description {
+  width: 150px;
+}
+
+.review-panel .review-table .col-type {
+  width: 104px;
+}
+
+.review-panel .review-table .col-category {
+  width: 112px;
+}
+
+.review-panel .review-table .col-money {
+  width: 96px;
 }
 
 .summary-grid {
@@ -600,8 +815,10 @@ input[type="file"] {
   color: var(--muted);
   display: grid;
   font-size: 12px;
-  font-weight: 700;
-  gap: 5px;
+  font-weight: 800;
+  gap: 7px;
+  letter-spacing: 0;
+  line-height: 1.25;
   min-width: 0;
 }
 
@@ -618,17 +835,61 @@ input[type="file"] {
 .wedding-form input,
 .wedding-form select,
 .house-form input,
-.house-form select,
-.recurring-form input,
-.recurring-form select {
+.house-form select {
   background: var(--field);
   border: 1px solid var(--line);
   border-radius: 8px;
+  box-sizing: border-box;
   color: var(--ink);
+  font: inherit;
+  font-weight: 700;
   min-height: 42px;
+  min-width: 0;
   padding: 8px 11px;
   width: 100%;
-  min-width: 0;
+}
+
+.import-form input:disabled,
+.import-form select:disabled,
+.manual-form input:disabled,
+.manual-form select:disabled,
+.budget-form input:disabled,
+.budget-form select:disabled,
+.wedding-form input:disabled,
+.wedding-form select:disabled,
+.house-form input:disabled,
+.house-form select:disabled {
+  opacity: 1;
+  -webkit-text-fill-color: var(--ink);
+}
+
+.import-form input:focus,
+.import-form select:focus,
+.manual-form input:focus,
+.manual-form select:focus,
+.budget-form input:focus,
+.budget-form select:focus,
+.wedding-form input:focus,
+.wedding-form select:focus,
+.house-form input:focus,
+.house-form select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
+  outline: none;
+}
+
+.manual-form input[type="file"]::file-selector-button,
+.import-form input[type="file"]::file-selector-button,
+.wedding-form input[type="file"]::file-selector-button,
+.house-form input[type="file"]::file-selector-button {
+  background: color-mix(in srgb, var(--primary) 13%, var(--field));
+  border: 0;
+  border-radius: 6px;
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 800;
+  margin-right: 10px;
+  padding: 7px 11px;
 }
 
 input::placeholder {
@@ -660,7 +921,7 @@ select:focus {
 
 .import-step:not(:last-child)::after {
   color: var(--muted);
-  content: "→";
+  content: "->";
   margin-left: 2px;
 }
 
@@ -759,8 +1020,11 @@ select:focus {
   padding: 6px 12px;
 }
 
-.import-rate-field {
-  max-width: 260px;
+.import-rate-note {
+  color: var(--ink);
+  font-size: 13px;
+  margin: 0;
+  padding: 0 20px 4px;
 }
 
 .import-detected-card {
@@ -814,6 +1078,10 @@ select:focus {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+#manualForm {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 #fundForm {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
@@ -830,6 +1098,18 @@ select:focus {
   grid-column: 1 / -1;
 }
 
+.field-pair {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.field-trio {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .manual-form .primary {
   justify-self: start;
   min-width: 140px;
@@ -837,8 +1117,7 @@ select:focus {
 
 .budget-form,
 .wedding-form,
-.house-form,
-.recurring-form {
+.house-form {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -855,8 +1134,7 @@ select:focus {
 
 .budget-form label,
 .wedding-form label,
-.house-form label,
-.recurring-form label {
+.house-form label {
   color: var(--muted);
   display: grid;
   font-size: 12px;
@@ -880,14 +1158,10 @@ select:focus {
   min-width: 160px;
 }
 
-.recurring-form-actions {
+.wedding-form-actions {
   align-items: center;
   display: flex;
   gap: 10px;
-}
-
-.recurring-form-actions .primary {
-  min-width: 150px;
 }
 
 .pill {
@@ -1052,6 +1326,7 @@ table {
   min-width: 1180px;
 }
 
+.saving-sale-table .col-actions,
 .savings-table .col-actions,
 .fund-table .col-actions {
   width: 285px;
@@ -1094,43 +1369,7 @@ table {
 }
 
 .wedding-table {
-  min-width: 1260px;
-}
-
-.recurring-table {
-  min-width: 1080px;
-}
-
-.recurring-col-name {
-  width: 170px;
-}
-
-.recurring-col-category {
-  width: 120px;
-}
-
-.recurring-col-account {
-  width: 120px;
-}
-
-.recurring-col-frequency {
-  width: 90px;
-}
-
-.recurring-col-money {
-  width: 95px;
-}
-
-.recurring-col-date {
-  width: 110px;
-}
-
-.recurring-col-status {
-  width: 90px;
-}
-
-.recurring-col-actions {
-  width: 190px;
+  min-width: 1326px;
 }
 
 .wedding-col-date {
@@ -1158,7 +1397,7 @@ table {
 }
 
 .wedding-col-actions {
-  width: 234px;
+  width: 300px;
 }
 
 th,
@@ -1278,12 +1517,15 @@ td.money {
 }
 
 .wedding-table .actions-cell {
-  min-width: 224px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 200px;
 }
 
 .wedding-table .table-action {
   font-size: 11px;
-  margin-right: 4px;
+  margin-right: 0;
   min-height: 26px;
   padding: 4px 6px;
 }
@@ -1346,39 +1588,22 @@ td.money {
   padding: 4px 7px;
 }
 
+.saving-sale-table .actions-cell,
 .savings-table .actions-cell,
 .fund-table .actions-cell {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   min-width: 260px;
-  white-space: nowrap;
 }
 
+.saving-sale-table .table-action,
 .savings-table .table-action,
 .fund-table .table-action {
   font-size: 11px;
   margin-right: 0;
   min-height: 28px;
   padding: 4px 8px;
-}
-
-.recurring-table th:nth-child(5),
-.recurring-table th:nth-child(6),
-.recurring-table td:nth-child(5),
-.recurring-table td:nth-child(6) {
-  text-align: right;
-}
-
-.recurring-table .table-action {
-  font-size: 11px;
-  margin-right: 4px;
-  margin-top: 3px;
-  min-height: 28px;
-  padding: 4px 7px;
-}
-
-.recurring-table .actions-cell {
-  white-space: normal;
 }
 
 .actions-cell {
@@ -1422,6 +1647,18 @@ td.money {
   background: rgba(255, 95, 104, 0.1);
   border-color: rgba(255, 95, 104, 0.34);
   color: var(--red);
+}
+
+.warning-text {
+  background: rgba(217, 161, 26, 0.1);
+  border-color: rgba(217, 161, 26, 0.36);
+  color: #d9a11a;
+}
+
+.info-text {
+  background: rgba(26, 125, 217, 0.1);
+  border-color: rgba(26, 125, 217, 0.36);
+  color: #1a7dd9;
 }
 
 .muted-text {
@@ -1602,6 +1839,12 @@ td select {
   z-index: 20;
 }
 
+/* Se abre encima de otros modales (ej. desde "Importar estado de cuenta"); con igual
+   z-index quedaba detras por orden de aparicion en el HTML y sus botones no se podian pulsar. */
+#deleteTransactionModal {
+  z-index: 30;
+}
+
 .modal-backdrop {
   background: rgba(0, 4, 14, 0.76);
   inset: 0;
@@ -1614,7 +1857,9 @@ td select {
   border-radius: 14px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.52);
   left: 50%;
+  max-height: 85vh;
   max-width: min(620px, calc(100% - 32px));
+  overflow-y: auto;
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%);
@@ -1627,6 +1872,26 @@ td select {
 
 .modal-card.file-modal {
   max-width: min(980px, calc(100% - 32px));
+}
+
+.modal-card.debt-import-card {
+  max-height: 92vh;
+  max-width: min(1360px, calc(100% - 32px));
+}
+
+.debt-import-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 4px 16px 18px;
+}
+
+.debt-import-body .movements-import-layout {
+  margin: 0;
+}
+
+.debt-import-body .panel {
+  margin: 0;
 }
 
 .modal-head,
@@ -1688,6 +1953,53 @@ td select {
   margin: 2px -16px 0;
 }
 
+.wedding-payment-history {
+  border-bottom: 1px solid var(--line);
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 10px 16px;
+}
+
+.wedding-payment-history-empty {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 6px 0;
+}
+
+.wedding-payment-row {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 8px 0;
+}
+
+.wedding-payment-row:last-child {
+  border-bottom: 0;
+}
+
+.wedding-payment-row-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.wedding-payment-row-main strong {
+  font-size: 14px;
+}
+
+.wedding-payment-row-main small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.wedding-payment-row-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
+
 .icon-button {
   background: var(--field);
   border: 1px solid var(--line);
@@ -1699,36 +2011,150 @@ td select {
   min-width: 32px;
 }
 
-.detail-grid {
-  display: grid;
-  grid-template-columns: 150px minmax(0, 1fr);
-  padding: 14px 16px;
+#viewTransactionModal .modal-card {
+  max-width: min(500px, calc(100% - 32px));
 }
 
-.detail-label,
-.detail-value {
+.detail-hero {
+  align-items: center;
+  background: linear-gradient(180deg, var(--panel-raised), transparent);
   border-bottom: 1px solid var(--line);
-  padding: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 24px 20px 20px;
+  text-align: center;
 }
 
-#viewTransactionModal .detail-label,
-#viewTransactionModal .detail-value {
+.detail-type-chip {
+  align-items: center;
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 0.72rem;
+  font-weight: 800;
+  gap: 6px;
+  letter-spacing: 0.05em;
+  padding: 4px 13px;
+  text-transform: uppercase;
+}
+
+.detail-type-chip.is-in {
+  background: rgba(30, 213, 155, 0.12);
+  border-color: rgba(30, 213, 155, 0.4);
+  color: var(--green);
+}
+
+.detail-type-chip.is-out {
+  background: rgba(255, 95, 104, 0.12);
+  border-color: rgba(255, 95, 104, 0.4);
+  color: var(--red);
+}
+
+.detail-hero-amount {
+  font-size: 2.1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+.detail-hero-amount.is-in {
+  color: var(--green);
+}
+
+.detail-hero-amount.is-out {
+  color: var(--red);
+}
+
+.detail-hero-desc {
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 600;
+  margin: 0;
+  max-width: 92%;
+  overflow-wrap: anywhere;
+}
+
+.detail-list {
+  display: grid;
+  padding: 8px 20px 18px;
+}
+
+.detail-item {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 12px 2px;
+}
+
+.detail-item:last-child {
   border-bottom: 0;
 }
 
-.detail-label {
+.detail-item-label {
   color: var(--muted);
+  font-size: 0.82rem;
   font-weight: 700;
+  white-space: nowrap;
 }
 
-.detail-value {
+.detail-item-value {
+  color: var(--ink);
+  font-weight: 700;
   overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.detail-tag {
+  background: var(--violet-soft);
+  border-radius: 999px;
+  color: var(--ink);
+  display: inline-block;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 3px 11px;
+}
+
+.detail-origin {
+  background: var(--field-strong);
+  border-radius: 999px;
+  color: var(--muted);
+  display: inline-block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 3px 11px;
 }
 
 .danger-soft {
   background: rgba(255, 95, 104, 0.1);
   border-color: rgba(255, 95, 104, 0.34);
   color: var(--red);
+}
+
+.info-soft {
+  background: rgba(26, 125, 217, 0.12);
+  border-color: rgba(26, 125, 217, 0.4);
+  color: #1a7dd9;
+}
+
+.info-soft:hover {
+  background: rgba(26, 125, 217, 0.2);
+  border-color: rgba(26, 125, 217, 0.5);
+}
+
+.warning-soft {
+  background: rgba(217, 161, 26, 0.12);
+  border-color: rgba(217, 161, 26, 0.4);
+  color: #d9a11a;
+}
+
+.warning-soft:hover {
+  background: rgba(217, 161, 26, 0.2);
+  border-color: rgba(217, 161, 26, 0.5);
 }
 
 .file-viewer {
@@ -2144,6 +2570,10 @@ td select {
     width: 100%;
   }
 
+  #debtGrid.goal-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .sidebar {
     border-bottom: 1px solid var(--line);
     border-right: 0;
@@ -2238,10 +2668,14 @@ td select {
     grid-column: auto;
   }
 
+  .field-pair,
+  .field-trio {
+    grid-template-columns: 1fr;
+  }
+
   .budget-form,
   .wedding-form,
-  .house-form,
-  .recurring-form {
+  .house-form {
     grid-template-columns: 1fr;
   }
 
@@ -2306,6 +2740,18 @@ td select {
   #houseView .table-tools label {
     grid-template-columns: 1fr;
   }
+
+  /* Objetivos tactiles mas comodos en movil */
+  .table-action,
+  .wedding-table .table-action,
+  .house-table .table-action {
+    min-height: 38px;
+    padding: 6px 12px;
+  }
+
+  #debtGrid.goal-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media print {
@@ -2346,3 +2792,145 @@ td select {
     overflow: visible;
   }
 }
+
+.monthly-control-kpis {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.movements-control-layout {
+  grid-template-columns: minmax(280px, 0.8fr) minmax(420px, 1.2fr);
+  align-items: stretch;
+}
+
+.monthly-budget-form,
+.cash-expense-form {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.monthly-budget-form {
+  grid-template-columns: minmax(220px, 1fr) auto;
+  align-items: end;
+}
+
+.monthly-budget-form label,
+.cash-expense-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.monthly-budget-form input,
+.cash-expense-form input,
+.cash-expense-form select {
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--field-bg);
+  color: var(--text);
+  padding: 0 12px;
+  font-weight: 700;
+}
+
+.monthly-budget-form .status {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.cash-expense-form {
+  grid-template-columns: repeat(3, minmax(150px, 1fr)) minmax(130px, auto);
+  align-items: end;
+}
+
+.cash-expense-form .full-span {
+  grid-column: 1 / -1;
+}
+
+.cash-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  grid-column: auto;
+  min-width: 130px;
+}
+
+.cash-actions .primary {
+  min-height: 40px;
+  padding-inline: 16px;
+  white-space: nowrap;
+}
+
+.cash-actions .status {
+  margin: 0;
+}
+
+.cash-expense-form input,
+.cash-expense-form select {
+  min-height: 40px;
+  padding-block: 7px;
+}
+
+#monthlyRemainingCard.negative {
+  border-color: rgba(255, 95, 104, 0.82);
+}
+
+@media (max-width: 1180px) {
+  .monthly-control-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .movements-control-layout,
+  .cash-expense-form,
+  .monthly-budget-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Unified field labels and inputs across forms */
+.import-form label,
+.manual-form label,
+.budget-form label,
+.wedding-form label,
+.house-form label,
+.monthly-budget-form label,
+.cash-expense-form label {
+  color: var(--muted);
+  display: grid;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 7px;
+  letter-spacing: 0;
+  line-height: 1.25;
+  min-width: 0;
+}
+
+.import-form input,
+.import-form select,
+.manual-form input,
+.manual-form select,
+.budget-form input,
+.budget-form select,
+.wedding-form input,
+.wedding-form select,
+.house-form input,
+.house-form select,
+.monthly-budget-form input,
+.cash-expense-form input,
+.cash-expense-form select {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-sizing: border-box;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  min-height: 42px;
+  min-width: 0;
+  padding: 8px 11px;
+  width: 100%;
+}
+
+
